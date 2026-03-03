@@ -6,7 +6,7 @@
       "Write(**)",
       "Glob(**)",
       "Grep(**)",
-      "Bash(**)"
+      "Bash"
     ]
   }
 }
