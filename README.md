@@ -38,19 +38,26 @@ claude
 
 ```bash
 cd /path/to/your/project
-~/claude-pipeline/setup.sh
+/path/to/claude-pipeline/setup.sh
 ```
 
 Interaktiver Wizard: fragt Projektname, Package Manager, Build-Commands, Notion-URL ab. Erzeugt alle nötigen Dateien.
 
 ### Update
 
-Framework-Agents oder -Commands verbessert? In jedes Projekt pushen:
+Framework-Agents, -Skills oder -Commands verbessert? In jedes Projekt pushen:
 
 ```bash
 cd /path/to/your/project
-~/claude-pipeline/setup.sh --update
+/path/to/claude-pipeline/setup.sh --update
 ```
+
+> **Tipp:** Den korrekten Pfad zum Framework einmalig als Alias anlegen:
+> ```bash
+> # ~/.zshrc oder ~/.bashrc
+> alias pipeline-update='/path/to/claude-pipeline/setup.sh --update'
+> ```
+> Danach reicht `cd my-project && pipeline-update`.
 
 Das Update überschreibt **nur Framework-Files** und fasst projektspezifische Dateien nie an:
 
@@ -58,17 +65,19 @@ Das Update überschreibt **nur Framework-Files** und fasst projektspezifische Da
 |---|---|
 | `.claude/agents/*` | `CLAUDE.md` |
 | `.claude/commands/*` | `project.json` |
-| `.claude/settings.json` | `.claude/skills/*` |
+| `.claude/skills/<framework-skill>.md` | `.claude/skills/<eigener-skill>.md` |
+| `.claude/settings.json` | |
 | `.pipeline/run.sh` | |
 
-Agents oder Commands, die aus dem Framework entfernt wurden, werden auch im Projekt aufgeräumt.
+Framework-Skills werden hinzugefügt/aktualisiert. Eigene Custom-Skills in `.claude/skills/` die nicht Teil des Frameworks sind, werden nie angefasst.
 
 ### Dry Run
 
 Vorher prüfen was sich ändern würde:
 
 ```bash
-~/claude-pipeline/setup.sh --update --dry-run
+cd /path/to/your/project
+/path/to/claude-pipeline/setup.sh --update --dry-run
 ```
 
 Zeigt welche Files neu, geändert oder entfernt werden — ohne etwas zu ändern.
@@ -102,6 +111,23 @@ claude-pipeline/
 │   ├── ship.md             # Commit + Push + PR
 │   ├── merge.md            # Squash Merge nach Freigabe
 │   └── status.md           # Aktueller Stand
+├── skills/                 # Framework Skills (auto-deployed)
+│   ├── brainstorming.md            # Requirement-Klärung vor Code
+│   ├── writing-plans.md            # Implementierungsplan erstellen
+│   ├── executing-plans.md          # Plan mit Checkpoints ausführen
+│   ├── subagent-driven-development.md  # Multi-Agent Workflows
+│   ├── dispatching-parallel-agents.md  # Parallele Tasks
+│   ├── test-driven-development.md  # TDD erzwingen
+│   ├── systematic-debugging.md     # Root Cause first
+│   ├── verification-before-completion.md  # Kein "done" ohne Beweis
+│   ├── finishing-a-development-branch.md  # Branch sauber abschliessen
+│   ├── requesting-code-review.md   # Code Review Workflow
+│   ├── receiving-code-review.md    # Review-Feedback verarbeiten
+│   ├── using-git-worktrees.md      # Isolierte Workspaces
+│   ├── design.md                   # Design-Token-Standards, Visual QA
+│   ├── frontend-design.md          # Component-Implementierung
+│   ├── backend.md                  # API-Patterns, Error Handling
+│   └── data-engineer.md            # Migration-Safety, RLS
 ├── pipeline/
 │   └── run.sh              # VPS/CI Pipeline Runner
 ├── settings.json           # Template .claude/settings.json
@@ -117,13 +143,17 @@ your-project/
 ├── CLAUDE.md               # Projektspezifische Instruktionen (anpassen!)
 ├── project.json            # Konfiguration: Notion-IDs, Build-Commands, Pfade
 ├── .claude/
-│   ├── agents/             # Agent-Definitionen (vom Framework)
-│   ├── commands/           # Slash-Commands (vom Framework)
-│   ├── settings.json       # Permissions
-│   ├── skills/             # Projektspezifische Skills (optional)
+│   ├── agents/             # Agent-Definitionen (vom Framework, auto-updated)
+│   ├── commands/           # Slash-Commands (vom Framework, auto-updated)
+│   ├── skills/             # Skills (Framework-Skills + eigene Custom-Skills)
+│   │   ├── brainstorming.md        # ← vom Framework (wird bei --update aktualisiert)
+│   │   ├── backend.md              # ← vom Framework
+│   │   ├── mein-custom-skill.md    # ← projektspezifisch (wird NIE angefasst)
+│   │   └── ...
+│   ├── settings.json       # Permissions (vom Framework)
 │   └── .pipeline-version   # Installierte Framework-Version
 └── .pipeline/
-    └── run.sh              # Pipeline Runner
+    └── run.sh              # Pipeline Runner (vom Framework)
 ```
 
 ## Konfiguration
