@@ -397,7 +397,6 @@ if [ "$OVERWRITE_CONFIG" != "N" ]; then
     SUPABASE_BLOCK=$(cat <<SUPABASE_EOF
   "supabase": {
     "project_id": "${SUPABASE_PROJECT_ID}",
-    "user_id": "",
     "project_name": ${SUPABASE_PROJECT_NAME_JSON}
   },
 SUPABASE_EOF

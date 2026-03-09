@@ -19,7 +19,7 @@ Richtet die Supabase-Datenbank für Ticket-Management ein.
 
 Lies `project.json` und prüfe ob `supabase.project_id` bereits gesetzt ist.
 
-**Falls bereits komplett konfiguriert** (project_id, user_id und project_name vorhanden):
+**Falls bereits konfiguriert** (project_id und project_name vorhanden):
 - Sage: "Supabase ist bereits konfiguriert (Projekt: {project_name}). Migration erneut ausführen?"
 - Falls der User bestätigt: weiter mit Schritt 3 (nur Migration)
 - Falls nicht: abbrechen
@@ -58,35 +58,22 @@ Via `mcp__claude_ai_Supabase__execute_sql` ausführen.
 
 Falls kein Name: `project_name` bleibt `null`.
 
-### 5. User-ID generieren
-
-Generiere eine zufällige UUID als Pipeline-Identifier:
-```bash
-python3 -c "import uuid; print(uuid.uuid4())"
-```
-
-Diese UUID identifiziert die Pipeline-Instanz (nicht ein Auth-User).
-
-### 6. project.json aktualisieren
+### 5. project.json aktualisieren
 
 Schreibe folgende Werte in `project.json` unter `supabase`:
 ```json
 "supabase": {
   "project_id": "{supabase_project_id}",
-  "user_id": "{generierte_uuid}",
   "project_name": "{projekt_name_oder_null}"
 }
 ```
 
-Falls ein alter `notion`-Block existiert: beibehalten (Legacy), aber Supabase-Block hinzufügen/aktualisieren.
-
-### 7. Bestätigung
+### 6. Bestätigung
 
 ```
 DB eingerichtet.
 
   Supabase-Projekt: {project_id}
-  Pipeline User-ID: {user_id}
   Projektname: {project_name || "(kein Filter)"}
 
 /ticket funktioniert jetzt.

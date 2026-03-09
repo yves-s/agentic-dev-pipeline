@@ -15,7 +15,6 @@ Lies `project.json` für Konventionen:
 
 **Supabase (optional):** Falls `supabase.project_id` in `project.json` gesetzt ist:
 - `supabase.project_id` — Supabase Project ID
-- `supabase.user_id` — Pipeline User-ID (UUID)
 - `supabase.project_name` — Projektname für Ticket-Filterung
 
 Falls `supabase.project_id` **leer oder nicht vorhanden** ist: Alle Supabase-Schritte in diesem Command überspringen. Ticket-Infos werden dann per `$ARGUMENTS` übergeben.

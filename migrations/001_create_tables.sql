@@ -21,7 +21,6 @@ CREATE TABLE IF NOT EXISTS public.projects (
 CREATE TABLE IF NOT EXISTS public.tickets (
   id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
   number INTEGER GENERATED ALWAYS AS IDENTITY,
-  user_id UUID NOT NULL,
   title TEXT NOT NULL,
   body TEXT,
   status TEXT NOT NULL DEFAULT 'backlog',
