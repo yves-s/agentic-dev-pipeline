@@ -1,230 +1,234 @@
 # Claude Pipeline Framework
 
-Portables Multi-Agent-System für autonome Software-Entwicklung mit Claude Code.
+A portable multi-agent system for autonomous software development with Claude Code.
 
-## Was ist das?
+## What is this?
 
-Ein Framework aus generischen Agents, Commands und einem Pipeline-Runner, das in jedes Projekt installiert werden kann. Es bietet:
+A framework of generic agents, commands, and a pipeline runner that can be installed into any project. It provides:
 
-- **7 spezialisierte Agents** (Orchestrator, Backend, Frontend, Data-Engineer, DevOps, QA, Security)
-- **4 Slash-Commands** (/ticket, /ship, /merge, /status)
-- **Pipeline-Runner** für VPS/CI-Ausführung
-- **Notion-Integration** für Ticket-Management
-- **Update-Mechanismus** mit Versionstracking und Dry-Run-Preview
+- **7 specialized agents** (Orchestrator, Backend, Frontend, Data-Engineer, DevOps, QA, Security)
+- **4 slash-commands** (`/ticket`, `/ship`, `/merge`, `/setup-db`)
+- **Pipeline runner** for VPS/CI execution
+- **Supabase integration** for ticket management
+- **Update mechanism** with version tracking and dry-run preview
 
 ## Quick Start
 
 ```bash
-# 1. Framework klonen (einmalig)
+# 1. Clone the framework (once)
 git clone https://github.com/yves-s/claude-pipeline.git ~/claude-pipeline
 
-# 2. In dein Projekt wechseln
+# 2. Switch to your project
 cd /path/to/your/project
 
-# 3. Setup ausführen (interaktiv)
+# 3. Run setup (interactive)
 ~/claude-pipeline/setup.sh
 
-# 4. CLAUDE.md anpassen (Architektur, Konventionen)
-# 5. project.json vervollständigen (Stack, Pfade)
+# 4. Customize CLAUDE.md (architecture, conventions)
+# 5. Fill out project.json (stack, paths, Supabase config)
 
-# 6. Loslegen
+# 6. Start working
 claude
 > /ticket
 ```
 
 ## Setup & Update
 
-### Erstinstallation
+### First Installation
 
 ```bash
 cd /path/to/your/project
 /path/to/claude-pipeline/setup.sh
 ```
 
-Interaktiver Wizard: fragt Projektname, Package Manager, Build-Commands, Notion-URL ab. Erzeugt alle nötigen Dateien.
+Interactive wizard: asks for project name, package manager, build commands, and Supabase config. Creates all necessary files.
 
 ### Update
 
-Framework-Agents, -Skills oder -Commands verbessert? In jedes Projekt pushen:
+Improved agents, skills, or commands? Push them to every project:
 
 ```bash
 cd /path/to/your/project
 /path/to/claude-pipeline/setup.sh --update
 ```
 
-> **Tipp:** Den korrekten Pfad zum Framework einmalig als Alias anlegen:
+> **Tip:** Save the path as an alias for convenience:
 > ```bash
-> # ~/.zshrc oder ~/.bashrc
+> # ~/.zshrc or ~/.bashrc
 > alias pipeline-update='/path/to/claude-pipeline/setup.sh --update'
 > ```
-> Danach reicht `cd my-project && pipeline-update`.
+> Then just run `cd my-project && pipeline-update`.
 
-Das Update überschreibt **nur Framework-Files** und fasst projektspezifische Dateien nie an:
+Updates **only framework files** and never touches project-specific files:
 
-| Wird aktualisiert | Wird nie überschrieben |
-|---|---|
+| Updated | Never overwritten |
+|---------|-------------------|
 | `.claude/agents/*` | `CLAUDE.md` |
 | `.claude/commands/*` | `project.json` |
-| `.claude/skills/<framework-skill>.md` | `.claude/skills/<eigener-skill>.md` |
+| `.claude/skills/<framework-skill>.md` | `.claude/skills/<your-custom-skill>.md` |
 | `.claude/scripts/*` | |
 | `.claude/settings.json` | |
 | `.pipeline/run.sh` | |
 
-Framework-Skills werden hinzugefügt/aktualisiert. Eigene Custom-Skills in `.claude/skills/` die nicht Teil des Frameworks sind, werden nie angefasst.
+Framework skills are added/updated. Custom skills in `.claude/skills/` that are not part of the framework are never touched.
 
 ### Dry Run
 
-Vorher prüfen was sich ändern würde:
+Preview what would change before updating:
 
 ```bash
 cd /path/to/your/project
 /path/to/claude-pipeline/setup.sh --update --dry-run
 ```
 
-Zeigt welche Files neu, geändert oder entfernt werden — ohne etwas zu ändern.
+Shows which files would be added, changed, or removed — without making any changes.
 
-### Versionstracking
+### Version Tracking
 
-Jede Installation schreibt die Framework-Version nach `.claude/.pipeline-version`. Beim Update siehst du:
+Each installation writes the framework version to `.claude/.pipeline-version`. On update you'll see:
 
 ```
 Installed: abc1234 (2026-02-28)
 Available: def5678 (2026-03-02)
 ```
 
-## Struktur
+## Structure
 
-### Framework (dieses Repo)
+### Framework (this repo)
 
 ```
 claude-pipeline/
-├── setup.sh                # Install + Update Script
-├── agents/                 # Generische Agent-Definitionen
-│   ├── orchestrator.md     # Plant, delegiert, shippt
-│   ├── backend.md          # API, Hooks, Business Logic
-│   ├── frontend.md         # UI Components (design-affin)
-│   ├── data-engineer.md    # DB Migrations, RLS, Types
-│   ├── devops.md           # Build-Checks, Fixes
-│   ├── qa.md               # AC-Verification, Tests, Security
-│   └── security.md         # Security Review
-├── commands/               # Slash-Commands
-│   ├── ticket.md           # Ticket → autonomer Workflow → PR
-│   ├── ship.md             # Commit + Push + PR
-│   ├── merge.md            # Squash Merge nach Freigabe
-│   └── status.md           # Aktueller Stand
-├── skills/                 # Framework Skills (auto-deployed)
-│   ├── brainstorming.md            # Requirement-Klärung vor Code
-│   ├── writing-plans.md            # Implementierungsplan erstellen
-│   ├── executing-plans.md          # Plan mit Checkpoints ausführen
-│   ├── subagent-driven-development.md  # Multi-Agent Workflows
-│   ├── dispatching-parallel-agents.md  # Parallele Tasks
-│   ├── test-driven-development.md  # TDD erzwingen
-│   ├── systematic-debugging.md     # Root Cause first
-│   ├── verification-before-completion.md  # Kein "done" ohne Beweis
-│   ├── finishing-a-development-branch.md  # Branch sauber abschliessen
-│   ├── requesting-code-review.md   # Code Review Workflow
-│   ├── receiving-code-review.md    # Review-Feedback verarbeiten
-│   ├── using-git-worktrees.md      # Isolierte Workspaces
-│   ├── design.md                   # Design-Token-Standards, Visual QA
-│   ├── frontend-design.md          # Component-Implementierung
-│   ├── creative-design.md          # Greenfield-Design, Anti-AI-Slop
-│   ├── webapp-testing.md           # Playwright-basiertes visuelles Testing
-│   ├── backend.md                  # API-Patterns, Error Handling
-│   └── data-engineer.md            # Migration-Safety, RLS
-├── scripts/                # Utility-Scripts (für Skills)
-│   └── with_server.py      # Server-Lifecycle für Playwright-Tests
+├── setup.sh                # Install + update script
+├── agents/                 # Generic agent definitions
+│   ├── orchestrator.md     # Plans, delegates, ships
+│   ├── backend.md          # API, hooks, business logic
+│   ├── frontend.md         # UI components (design-aware)
+│   ├── data-engineer.md    # DB migrations, RLS, types
+│   ├── devops.md           # Build checks, fixes
+│   ├── qa.md               # AC verification, tests, security
+│   └── security.md         # Security review
+├── commands/               # Slash-commands
+│   ├── ticket.md           # Ticket → autonomous workflow → PR
+│   ├── ship.md             # Commit + push + PR
+│   ├── merge.md            # Squash merge after approval
+│   └── setup-db.md         # Supabase schema setup
+├── skills/                 # Framework skills (auto-deployed)
+│   ├── brainstorming.md
+│   ├── writing-plans.md
+│   ├── executing-plans.md
+│   ├── subagent-driven-development.md
+│   ├── dispatching-parallel-agents.md
+│   ├── test-driven-development.md
+│   ├── systematic-debugging.md
+│   ├── verification-before-completion.md
+│   ├── finishing-a-development-branch.md
+│   ├── requesting-code-review.md
+│   ├── receiving-code-review.md
+│   ├── using-git-worktrees.md
+│   ├── design.md
+│   ├── frontend-design.md
+│   ├── creative-design.md
+│   ├── webapp-testing.md
+│   ├── backend.md
+│   └── data-engineer.md
+├── scripts/                # Utility scripts (used by skills)
+│   └── with_server.py      # Server lifecycle for Playwright tests
 ├── pipeline/
-│   └── run.sh              # VPS/CI Pipeline Runner
-├── settings.json           # Template .claude/settings.json
+│   └── run.sh              # VPS/CI pipeline runner
+├── migrations/
+│   └── 001_create_tables.sql  # Supabase schema
+├── settings.json           # Template for .claude/settings.json
 └── templates/
-    ├── project.json        # Template für Projektkonfiguration
-    └── CLAUDE.md           # Template für Projektinstruktionen
+    ├── project.json        # Project configuration template
+    └── CLAUDE.md           # Project instructions template
 ```
 
-### Zielprojekt (nach Setup)
+### Target project (after setup)
 
 ```
 your-project/
-├── CLAUDE.md               # Projektspezifische Instruktionen (anpassen!)
-├── project.json            # Konfiguration: Notion-IDs, Build-Commands, Pfade
+├── CLAUDE.md               # Project-specific instructions (customize this!)
+├── project.json            # Config: Supabase IDs, build commands, paths
 ├── .claude/
-│   ├── agents/             # Agent-Definitionen (vom Framework, auto-updated)
-│   ├── commands/           # Slash-Commands (vom Framework, auto-updated)
-│   ├── skills/             # Skills (Framework-Skills + eigene Custom-Skills)
-│   │   ├── brainstorming.md        # ← vom Framework (wird bei --update aktualisiert)
-│   │   ├── backend.md              # ← vom Framework
-│   │   ├── mein-custom-skill.md    # ← projektspezifisch (wird NIE angefasst)
+│   ├── agents/             # Agent definitions (from framework, auto-updated)
+│   ├── commands/           # Slash-commands (from framework, auto-updated)
+│   ├── skills/             # Skills (framework + your custom skills)
+│   │   ├── brainstorming.md        # ← from framework (updated with --update)
+│   │   ├── backend.md              # ← from framework
+│   │   ├── my-custom-skill.md      # ← project-specific (never touched)
 │   │   └── ...
-│   ├── scripts/            # Utility-Scripts (vom Framework)
-│   │   └── with_server.py          # Server-Lifecycle für Playwright-Tests
-│   ├── settings.json       # Permissions (vom Framework)
-│   └── .pipeline-version   # Installierte Framework-Version
+│   ├── scripts/
+│   │   └── with_server.py
+│   ├── settings.json       # Permissions (from framework)
+│   └── .pipeline-version   # Installed framework version
 └── .pipeline/
-    └── run.sh              # Pipeline Runner (vom Framework)
+    └── run.sh              # Pipeline runner (from framework)
 ```
 
-## Konfiguration
+## Configuration
 
 ### project.json
 
-Zentrale Konfigurationsdatei. Alle Agents und Commands lesen hieraus.
+Central configuration file. All agents and commands read from this.
 
-| Feld | Zweck |
-|------|-------|
-| `name` | Projektname (kebab-case) |
-| `stack` | Tech-Stack (Framework, DB, etc.) |
-| `build.web` | Build-Command |
-| `build.test` | Test-Command |
-| `paths` | Wichtige Verzeichnisse |
-| `notion.tasks_db` | Database ID (32 hex chars aus der Notion-URL) |
-| `notion.project_filter` | Projektname (exakter Match gegen Projekt-Relation) |
-| `conventions` | Branch-Prefix, Commit-Format |
-
-Die **Data Source URL** wird zur Laufzeit automatisch aufgelöst — sie steht nicht in der Config. Claude resolved sie beim ersten Notion-Zugriff via `notion-fetch` auf die DB und cached sie für die Session.
+| Field | Purpose |
+|-------|---------|
+| `name` | Project name (kebab-case) |
+| `stack` | Tech stack (framework, DB, etc.) |
+| `build.web` | Build command |
+| `build.test` | Test command |
+| `paths` | Key directories |
+| `supabase.project_id` | Supabase project ID |
+| `supabase.tasks_table` | Table name for tickets |
+| `conventions` | Branch prefix, commit format |
 
 ### CLAUDE.md
 
-Projektspezifische Instruktionen die Agents als Kontext nutzen:
-- Architektur und Verzeichnisstruktur
-- Code-Konventionen und Import-Muster
-- Sicherheitsanforderungen
-- Domain-spezifisches Wissen
+Project-specific instructions used by agents as context:
+- Architecture and directory structure
+- Code conventions and import patterns
+- Security requirements
+- Domain-specific knowledge
 
 ## Workflow
 
 ```
 /ticket
-  ├── Phase 1: Orchestrator liest betroffene Dateien (5-10)
-  ├── Phase 2: Agents parallel (data-engineer, backend, frontend)
-  ├── Phase 3: Build-Check (Bash)
-  ├── Phase 4: Review (QA-Agent, ggf. Security-Agent)
-  └── Phase 5: /ship (Commit → PR → Notion "Ready to review") ← STOPP
+  ├── Phase 1: Orchestrator reads affected files (5–10)
+  ├── Phase 2: Agents in parallel (data-engineer, backend, frontend)
+  ├── Phase 3: Build check (Bash)
+  ├── Phase 4: Review (QA agent, optionally Security agent)
+  └── Phase 5: /ship (commit → PR → ticket marked "Ready to review") ← STOP
 
-User reviewed PR → "passt" / /merge
-  └── /merge (Squash Merge → Delete Branch → Notion "Done")
+User reviews PR → "looks good" / /merge
+  └── /merge (squash merge → delete branch → ticket marked "Done")
 ```
 
-## VPS/CI Ausführung
+## VPS/CI Execution
 
 ```bash
 .pipeline/run.sh <TICKET_ID> <TICKET_TITLE> [DESCRIPTION] [LABELS]
 # → claude --agent orchestrator --dangerously-skip-permissions
 ```
 
-Der Pipeline-Runner gibt am Ende JSON für n8n aus:
+The pipeline runner outputs JSON at the end (for n8n or other automation):
 
 ```json
 {
   "status": "completed",
-  "ticket_id": "T--162",
-  "branch": "feature/T--162-kurzbeschreibung",
+  "ticket_id": "T-162",
+  "branch": "feature/T-162-short-description",
   "project": "my-project"
 }
 ```
 
-## Kosten
+## Cost
 
-- ~2-5€ pro Ticket (Anthropic API)
-- Haiku für Routine (DB, Build, Review)
-- Sonnet für Kreatives (UI, Logic)
-- Opus für den Orchestrator
+- ~€2–5 per ticket (Anthropic API)
+- Haiku for routine tasks (DB, build, review)
+- Sonnet for creative work (UI, logic)
+- Opus for the orchestrator
+
+## License
+
+MIT — see [LICENSE](LICENSE)
