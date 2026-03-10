@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useCallback, useRef } from "react";
+import { useEffect, useState, useCallback, useRef, useMemo } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { TaskEvent } from "@/lib/types";
 
@@ -12,11 +12,31 @@ interface AgentActivity {
   created_at: string;
 }
 
+export interface ActiveAgent {
+  ticket_id: string;
+  agent_type: string;
+  event_type: string;
+  created_at: string;
+  status: "running" | "completed" | "failed";
+}
+
+function deriveStatus(eventType: string): "running" | "completed" | "failed" {
+  const lower = eventType.toLowerCase();
+  if (
+    lower.includes("complet") ||
+    lower.includes("done") ||
+    lower.includes("finish")
+  )
+    return "completed";
+  if (lower.includes("fail") || lower.includes("error")) return "failed";
+  return "running";
+}
+
 /**
  * Tracks which tickets have recent agent activity (events within last 60s).
  * Subscribes to Supabase Realtime INSERT events on task_events.
  */
-export function useAgentActivity(workspaceId: string) {
+export function useAgentActivity(workspaceId: string, ticketIds?: string[]) {
   // Map of ticket_id → latest activity
   const [activityMap, setActivityMap] = useState<
     Map<string, AgentActivity>
@@ -49,6 +69,51 @@ export function useAgentActivity(workspaceId: string) {
     },
     [activityMap]
   );
+
+  const activeAgents = useMemo((): ActiveAgent[] => {
+    const now = Date.now();
+    const result: ActiveAgent[] = [];
+    for (const [ticketId, activity] of activityMap) {
+      if (now - new Date(activity.created_at).getTime() < ACTIVITY_WINDOW_MS) {
+        result.push({
+          ticket_id: ticketId,
+          agent_type: activity.agent_type,
+          event_type: activity.event_type,
+          created_at: activity.created_at,
+          status: deriveStatus(activity.event_type),
+        });
+      }
+    }
+    return result;
+  }, [activityMap]);
+
+  // Load recent events on mount for initial state
+  useEffect(() => {
+    if (!ticketIds?.length) return;
+    const supabase = createClient();
+    const cutoff = new Date(Date.now() - ACTIVITY_WINDOW_MS).toISOString();
+    supabase
+      .from("task_events")
+      .select("*")
+      .in("ticket_id", ticketIds)
+      .gte("created_at", cutoff)
+      .order("created_at", { ascending: true })
+      .then(({ data }) => {
+        if (!data?.length) return;
+        setActivityMap((prev) => {
+          const next = new Map(prev);
+          for (const event of data as TaskEvent[]) {
+            next.set(event.ticket_id, {
+              agent_type: event.agent_type,
+              event_type: event.event_type,
+              created_at: event.created_at,
+            });
+          }
+          return next;
+        });
+      });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // run once on mount
 
   useEffect(() => {
     const supabase = createClient();
@@ -103,5 +168,5 @@ export function useAgentActivity(workspaceId: string) {
     };
   }, [workspaceId]);
 
-  return { isActive, getActivity };
+  return { isActive, getActivity, activeAgents };
 }

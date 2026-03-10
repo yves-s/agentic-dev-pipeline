@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -20,6 +20,7 @@ import type { Ticket } from "@/lib/types";
 import { BoardColumn } from "./board-column";
 import { TicketCard } from "./ticket-card";
 import { TicketDetailSheet } from "@/components/tickets/ticket-detail-sheet";
+import { AgentPanel } from "./agent-panel";
 import { useAgentActivity } from "@/lib/hooks/use-agent-activity";
 
 interface BoardProps {
@@ -33,7 +34,8 @@ export function Board({ initialTickets, workspaceId }: BoardProps) {
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
 
-  const { isActive, getActivity } = useAgentActivity(workspaceId);
+  const ticketIds = useMemo(() => initialTickets.map((t) => t.id), [initialTickets]);
+  const { isActive, getActivity, activeAgents } = useAgentActivity(workspaceId, ticketIds);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
@@ -133,6 +135,11 @@ export function Board({ initialTickets, workspaceId }: BoardProps) {
 
   return (
     <>
+      <AgentPanel
+        activeAgents={activeAgents}
+        tickets={tickets}
+        onTicketClick={handleTicketClick}
+      />
       <div className="flex-1 overflow-x-auto">
         <DndContext
           sensors={sensors}

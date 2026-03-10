@@ -41,7 +41,7 @@ function ForgotPasswordForm() {
 
     const redirectTo =
       typeof window !== "undefined"
-        ? `${window.location.origin}/auth/callback`
+        ? `${window.location.origin}/auth/callback?next=/reset-password`
         : undefined;
 
     const { error } = await supabase.auth.resetPasswordForEmail(data.email, {
