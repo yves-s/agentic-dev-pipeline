@@ -1,4 +1,4 @@
-# Claude Pipeline Framework
+# Agentic Dev Pipeline
 
 A portable multi-agent system for autonomous software development with Claude Code.
 
@@ -16,13 +16,13 @@ A framework of generic agents, commands, and a pipeline runner that can be insta
 
 ```bash
 # 1. Clone the framework (once)
-git clone https://github.com/yves-s/claude-pipeline.git ~/claude-pipeline
+git clone https://github.com/yves-s/agentic-dev-pipeline.git ~/agentic-dev-pipeline
 
 # 2. Switch to your project
 cd /path/to/your/project
 
 # 3. Run setup (interactive)
-~/claude-pipeline/setup.sh
+~/agentic-dev-pipeline/setup.sh
 
 # 4. Customize CLAUDE.md (architecture, conventions)
 # 5. Fill out project.json (stack, paths, Supabase config)
@@ -38,7 +38,7 @@ claude
 
 ```bash
 cd /path/to/your/project
-/path/to/claude-pipeline/setup.sh
+/path/to/agentic-dev-pipeline/setup.sh
 ```
 
 Interactive wizard: asks for project name, package manager, build commands, and Supabase config. Creates all necessary files.
@@ -49,13 +49,13 @@ Improved agents, skills, or commands? Push them to every project:
 
 ```bash
 cd /path/to/your/project
-/path/to/claude-pipeline/setup.sh --update
+/path/to/agentic-dev-pipeline/setup.sh --update
 ```
 
 > **Tip:** Save the path as an alias for convenience:
 > ```bash
 > # ~/.zshrc or ~/.bashrc
-> alias pipeline-update='/path/to/claude-pipeline/setup.sh --update'
+> alias pipeline-update='/path/to/agentic-dev-pipeline/setup.sh --update'
 > ```
 > Then just run `cd my-project && pipeline-update`.
 
@@ -78,7 +78,7 @@ Preview what would change before updating:
 
 ```bash
 cd /path/to/your/project
-/path/to/claude-pipeline/setup.sh --update --dry-run
+/path/to/agentic-dev-pipeline/setup.sh --update --dry-run
 ```
 
 Shows which files would be added, changed, or removed — without making any changes.
@@ -97,7 +97,7 @@ Available: def5678 (2026-03-02)
 ### Framework (this repo)
 
 ```
-claude-pipeline/
+agentic-dev-pipeline/
 ├── setup.sh                # Install + update script
 ├── agents/                 # Generic agent definitions
 │   ├── orchestrator.md     # Plans, delegates, ships

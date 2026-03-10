@@ -263,6 +263,8 @@ RETURNING number, title, status;
 
 Use `project_id` from `pipeline.project_id` in `project.json` as the Supabase project.
 
+After a successful insert, confirm with: `✓ Ticket T-{number} created: {title}`
+
 ### Notion — Secondary
 
 Use `mcp__claude_ai_Notion__notion-search` to find the target database, then `mcp__claude_ai_Notion__notion-create-pages` to create the ticket as a page. Apply Status, Priority, and Type as Notion properties if the database schema supports them.

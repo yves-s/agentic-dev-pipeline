@@ -1,18 +1,18 @@
 #!/bin/bash
 # =============================================================================
-# setup.sh – Install or update Claude Pipeline Framework in a project
+# setup.sh – Install or update Agentic Dev Pipeline in a project
 #
 # Usage:
 #   cd /path/to/your/project
 #
 #   # Initial setup (interactive)
-#   /path/to/claude-pipeline/setup.sh
+#   /path/to/agentic-dev-pipeline/setup.sh
 #
 #   # Update framework files only (non-interactive)
-#   /path/to/claude-pipeline/setup.sh --update
+#   /path/to/agentic-dev-pipeline/setup.sh --update
 #
 #   # Preview what would change
-#   /path/to/claude-pipeline/setup.sh --update --dry-run
+#   /path/to/agentic-dev-pipeline/setup.sh --update --dry-run
 #
 # Framework files (overwritten on update):
 #   .claude/agents/*          Agent definitions
@@ -77,9 +77,9 @@ FRAMEWORK_VERSION=$(get_framework_version)
 echo ""
 echo "================================================"
 if [ "$MODE" = "update" ]; then
-  echo "  Claude Pipeline Framework — Update"
+  echo "  Agentic Dev Pipeline — Update"
 else
-  echo "  Claude Pipeline Framework — Setup"
+  echo "  Agentic Dev Pipeline — Setup"
 fi
 echo "  Version: $FRAMEWORK_VERSION"
 echo "================================================"
