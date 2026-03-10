@@ -73,12 +73,12 @@ export default function NewWorkspacePage() {
       return;
     }
 
-    const { data: workspace, error } = await supabase
+    const { data: workspace, error } = (await supabase
       .rpc("create_workspace", {
         ws_name: data.name,
         ws_slug: data.slug,
       })
-      .single();
+      .single()) as { data: { id: string; slug: string } | null; error: { message: string } | null };
 
     if (error || !workspace) {
       setServerError(error?.message ?? "Workspace creation failed");
