@@ -68,16 +68,14 @@ export function Sidebar({ workspace, userEmail, workspaces }: SidebarProps) {
       {/* Workspace switcher */}
       <div className="border-b p-3">
         <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
-              <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary text-[10px] font-bold text-primary-foreground">
-                {workspace.name[0].toUpperCase()}
-              </div>
-              <span className="flex-1 truncate text-left">
-                {workspace.name}
-              </span>
-              <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-            </button>
+          <DropdownMenuTrigger className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-sm font-medium hover:bg-accent hover:text-accent-foreground transition-colors">
+            <div className="flex h-5 w-5 shrink-0 items-center justify-center rounded bg-primary text-[10px] font-bold text-primary-foreground">
+              {workspace.name[0].toUpperCase()}
+            </div>
+            <span className="flex-1 truncate text-left">
+              {workspace.name}
+            </span>
+            <ChevronDown className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
           </DropdownMenuTrigger>
           <DropdownMenuContent className="w-52" align="start">
             {workspaces.map((ws) => (

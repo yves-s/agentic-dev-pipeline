@@ -1,10 +1,12 @@
 "use client";
 
+import { useState } from "react";
 import { useSortable } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { GitBranch, CalendarDays } from "lucide-react";
+import { GitBranch, CalendarDays, Copy, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { PriorityBadge } from "@/components/shared/status-badge";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import type { Ticket } from "@/lib/types";
 
 interface TicketCardProps {
@@ -42,6 +44,8 @@ export function TicketCard({
   agentActive = false,
   agentActivity = null,
 }: TicketCardProps) {
+  const [copiedNumber, setCopiedNumber] = useState(false);
+
   const {
     attributes,
     listeners,
@@ -57,6 +61,14 @@ export function TicketCard({
   };
 
   const hasFooter = ticket.branch || ticket.pipeline_status || ticket.due_date;
+
+  function handleCopyNumber(e: React.MouseEvent) {
+    e.stopPropagation();
+    navigator.clipboard.writeText(`T-${ticket.number}`).then(() => {
+      setCopiedNumber(true);
+      setTimeout(() => setCopiedNumber(false), 1500);
+    });
+  }
 
   return (
     <div
@@ -77,9 +89,24 @@ export function TicketCard({
       <div className="p-3 flex flex-col gap-2">
         <div className="flex flex-col gap-1">
           <div className="flex items-center gap-1.5">
-            <span className="font-mono text-[10px] text-muted-foreground">
-              T-{ticket.number}
-            </span>
+            <Tooltip open={copiedNumber ? true : undefined}>
+              <TooltipTrigger asChild>
+                <button
+                  onClick={handleCopyNumber}
+                  className="font-mono text-[10px] text-muted-foreground flex items-center gap-0.5 hover:text-foreground transition-colors"
+                >
+                  {copiedNumber ? (
+                    <Check className="h-2.5 w-2.5 text-emerald-500" />
+                  ) : (
+                    <Copy className="h-2.5 w-2.5 opacity-0 group-hover:opacity-60 transition-opacity" />
+                  )}
+                  T-{ticket.number}
+                </button>
+              </TooltipTrigger>
+              <TooltipContent side="top">
+                {copiedNumber ? "Kopiert!" : "Kopieren"}
+              </TooltipContent>
+            </Tooltip>
             {agentActive && (
               <span
                 className="relative flex h-2 w-2"

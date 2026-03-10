@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
-import { Search, Ticket as TicketIcon } from "lucide-react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
+import { Search, Ticket as TicketIcon, Loader2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, PriorityBadge } from "@/components/shared/status-badge";
@@ -13,6 +13,8 @@ import type { TicketStatus } from "@/lib/constants";
 import { TICKET_STATUSES } from "@/lib/constants";
 import { cn } from "@/lib/utils";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
+
+const PAGE_SIZE = 30;
 
 interface TicketListViewProps {
   initialTickets: Ticket[];
@@ -50,6 +52,38 @@ export function TicketListView({
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [createOpen, setCreateOpen] = useState(false);
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const sentinelRef = useRef<HTMLDivElement>(null);
+
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(PAGE_SIZE);
+  }, [search, statusFilter]);
+
+  // Infinite scroll via IntersectionObserver
+  const loadMore = useCallback(() => {
+    if (isLoadingMore) return;
+    setIsLoadingMore(true);
+    // Data is already in memory — defer to next frame for spinner visibility
+    requestAnimationFrame(() => {
+      setVisibleCount((c) => c + PAGE_SIZE);
+      setIsLoadingMore(false);
+    });
+  }, [isLoadingMore]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) loadMore();
+      },
+      { threshold: 0.1 }
+    );
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [loadMore]);
 
   // Open ticket from URL deeplink on mount
   useEffect(() => {
@@ -76,6 +110,9 @@ export function TicketListView({
       return matchesSearch && matchesStatus;
     });
   }, [tickets, search, statusFilter]);
+
+  const visibleTickets = filtered.slice(0, visibleCount);
+  const hasMore = visibleCount < filtered.length;
 
   function handleRowClick(ticket: Ticket) {
     setSelectedTicket(ticket);
@@ -178,6 +215,7 @@ export function TicketListView({
             }
           />
         ) : (
+          <>
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b text-xs text-muted-foreground">
@@ -190,7 +228,7 @@ export function TicketListView({
               </tr>
             </thead>
             <tbody>
-              {filtered.map((ticket) => (
+              {visibleTickets.map((ticket) => (
                 <tr
                   key={ticket.id}
                   onClick={() => handleRowClick(ticket)}
@@ -232,6 +270,15 @@ export function TicketListView({
               ))}
             </tbody>
           </table>
+          {/* Sentinel + loading indicator */}
+          {hasMore && (
+            <div ref={sentinelRef} className="flex items-center justify-center py-4">
+              {isLoadingMore && (
+                <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
+          )}
+          </>
         )}
       </div>
 

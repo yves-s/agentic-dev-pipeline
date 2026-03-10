@@ -10,6 +10,7 @@ import {
   Trash2,
   Share2,
   Check,
+  Copy,
   Activity,
   Flag,
   CircleDot,
@@ -20,6 +21,7 @@ import { TICKET_STATUSES, TICKET_PRIORITIES } from "@/lib/constants";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { StatusBadge, PriorityBadge } from "@/components/shared/status-badge";
+import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/lib/workspace-context";
 import type { Ticket, Project } from "@/lib/types";
@@ -88,6 +90,7 @@ export function TicketDetailSheet({
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [copiedNumber, setCopiedNumber] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -186,6 +189,13 @@ export function TicketDetailSheet({
     });
   }
 
+  function handleCopyNumber() {
+    navigator.clipboard.writeText(`T-${current?.number}`).then(() => {
+      setCopiedNumber(true);
+      setTimeout(() => setCopiedNumber(false), 1500);
+    });
+  }
+
   if (!current) return null;
 
   return (
@@ -198,9 +208,24 @@ export function TicketDetailSheet({
 
         {/* Header strip — T-number aligned with X close button */}
         <div className="flex items-center px-8 h-12 shrink-0 pr-14">
-          <span className="font-mono text-xs text-muted-foreground">
-            T-{current.number}
-          </span>
+          <Tooltip open={copiedNumber ? true : undefined}>
+            <TooltipTrigger asChild>
+              <button
+                onClick={handleCopyNumber}
+                className="font-mono text-xs text-muted-foreground flex items-center gap-1 hover:text-foreground transition-colors group"
+              >
+                T-{current.number}
+                {copiedNumber ? (
+                  <Check className="h-3 w-3 text-emerald-500" />
+                ) : (
+                  <Copy className="h-3 w-3 opacity-0 group-hover:opacity-60 transition-opacity" />
+                )}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom">
+              {copiedNumber ? "Kopiert!" : "Kopieren"}
+            </TooltipContent>
+          </Tooltip>
         </div>
 
         <div className="flex-1 overflow-y-auto">
