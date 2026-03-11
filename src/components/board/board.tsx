@@ -10,7 +10,9 @@ import {
   PointerSensor,
   useSensor,
   useSensors,
+  pointerWithin,
   closestCorners,
+  type CollisionDetection,
 } from "@dnd-kit/core";
 import { arrayMove } from "@dnd-kit/sortable";
 import { createClient } from "@/lib/supabase/client";
@@ -76,6 +78,18 @@ const PRIORITY_ORDER: Record<TicketPriority, number> = {
   high: 3,
   medium: 2,
   low: 1,
+};
+
+/**
+ * Custom collision detection: prioritises pointerWithin (detects empty columns
+ * reliably) and falls back to closestCorners for reordering within columns.
+ */
+const columnAwareCollision: CollisionDetection = (args) => {
+  const pointerCollisions = pointerWithin(args);
+  if (pointerCollisions.length > 0) {
+    return pointerCollisions;
+  }
+  return closestCorners(args);
 };
 
 interface BoardProps {
@@ -332,7 +346,7 @@ export function Board({
       <div className="flex-1 overflow-x-auto">
         <DndContext
           sensors={sensors}
-          collisionDetection={closestCorners}
+          collisionDetection={columnAwareCollision}
           onDragStart={handleDragStart}
           onDragOver={handleDragOver}
           onDragEnd={handleDragEnd}
