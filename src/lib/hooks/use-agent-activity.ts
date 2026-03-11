@@ -35,37 +35,46 @@ function deriveStatus(eventType: string): "running" | "completed" | "failed" {
 /**
  * Tracks which tickets have recent agent activity (events within last 60s).
  * Subscribes to Supabase Realtime INSERT events on task_events.
+ * Uses composite key (ticket_id::agent_type) to support multiple agents per ticket.
  */
 export function useAgentActivity(workspaceId: string, ticketIds?: string[]) {
-  // Map of ticket_id → latest activity
+  // Map of "ticket_id::agent_type" → activity (supports multiple agents per ticket)
   const [activityMap, setActivityMap] = useState<
-    Map<string, AgentActivity>
+    Map<string, AgentActivity & { ticket_id: string }>
   >(new Map());
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const isActive = useCallback(
     (ticketId: string) => {
-      const activity = activityMap.get(ticketId);
-      if (!activity) return false;
-      return (
-        Date.now() - new Date(activity.created_at).getTime() <
-        ACTIVITY_WINDOW_MS
-      );
+      const now = Date.now();
+      for (const [key, activity] of activityMap) {
+        if (
+          key.startsWith(`${ticketId}::`) &&
+          now - new Date(activity.created_at).getTime() < ACTIVITY_WINDOW_MS
+        ) {
+          return true;
+        }
+      }
+      return false;
     },
     [activityMap]
   );
 
   const getActivity = useCallback(
     (ticketId: string): AgentActivity | null => {
-      const activity = activityMap.get(ticketId);
-      if (!activity) return null;
-      if (
-        Date.now() - new Date(activity.created_at).getTime() >=
-        ACTIVITY_WINDOW_MS
-      ) {
-        return null;
+      const now = Date.now();
+      let latest: (AgentActivity & { ticket_id: string }) | null = null;
+      for (const [key, activity] of activityMap) {
+        if (
+          key.startsWith(`${ticketId}::`) &&
+          now - new Date(activity.created_at).getTime() < ACTIVITY_WINDOW_MS
+        ) {
+          if (!latest || activity.created_at > latest.created_at) {
+            latest = activity;
+          }
+        }
       }
-      return activity;
+      return latest;
     },
     [activityMap]
   );
@@ -73,10 +82,10 @@ export function useAgentActivity(workspaceId: string, ticketIds?: string[]) {
   const activeAgents = useMemo((): ActiveAgent[] => {
     const now = Date.now();
     const result: ActiveAgent[] = [];
-    for (const [ticketId, activity] of activityMap) {
+    for (const [, activity] of activityMap) {
       if (now - new Date(activity.created_at).getTime() < ACTIVITY_WINDOW_MS) {
         result.push({
-          ticket_id: ticketId,
+          ticket_id: activity.ticket_id,
           agent_type: activity.agent_type,
           event_type: activity.event_type,
           created_at: activity.created_at,
@@ -103,7 +112,9 @@ export function useAgentActivity(workspaceId: string, ticketIds?: string[]) {
         setActivityMap((prev) => {
           const next = new Map(prev);
           for (const event of data as TaskEvent[]) {
-            next.set(event.ticket_id, {
+            const key = `${event.ticket_id}::${event.agent_type}`;
+            next.set(key, {
+              ticket_id: event.ticket_id,
               agent_type: event.agent_type,
               event_type: event.event_type,
               created_at: event.created_at,
@@ -130,9 +141,11 @@ export function useAgentActivity(workspaceId: string, ticketIds?: string[]) {
         },
         (payload) => {
           const event = payload.new as TaskEvent;
+          const key = `${event.ticket_id}::${event.agent_type}`;
           setActivityMap((prev) => {
             const next = new Map(prev);
-            next.set(event.ticket_id, {
+            next.set(key, {
+              ticket_id: event.ticket_id,
               agent_type: event.agent_type,
               event_type: event.event_type,
               created_at: event.created_at,
@@ -149,12 +162,12 @@ export function useAgentActivity(workspaceId: string, ticketIds?: string[]) {
         const now = Date.now();
         let changed = false;
         const next = new Map(prev);
-        for (const [ticketId, activity] of next) {
+        for (const [key, activity] of next) {
           if (
             now - new Date(activity.created_at).getTime() >=
             ACTIVITY_WINDOW_MS
           ) {
-            next.delete(ticketId);
+            next.delete(key);
             changed = true;
           }
         }
