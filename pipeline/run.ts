@@ -127,33 +127,36 @@ Branch ist bereits erstellt: ${branchName}`;
 }
 
 // --- CLI entry point (only runs when executed directly) ---
+// Wrapped in async IIFE to avoid top-level await (breaks CJS imports from worker.ts)
 const isMain = process.argv[1]?.endsWith("run.ts");
 if (isMain) {
-  const projectDir = process.cwd();
-  const ticket = parseCliArgs(process.argv.slice(2));
-  const config = loadProjectConfig(projectDir);
+  (async () => {
+    const projectDir = process.cwd();
+    const ticket = parseCliArgs(process.argv.slice(2));
+    const config = loadProjectConfig(projectDir);
 
-  // --- Banner ---
-  console.error("================================================");
-  console.error(`  ${config.name} — Autonomous Pipeline (SDK)`);
-  console.error(`  Ticket: ${ticket.ticketId} — ${ticket.title}`);
-  console.error("================================================\n");
+    // --- Banner ---
+    console.error("================================================");
+    console.error(`  ${config.name} — Autonomous Pipeline (SDK)`);
+    console.error(`  Ticket: ${ticket.ticketId} — ${ticket.title}`);
+    console.error("================================================\n");
 
-  const result = await executePipeline({ projectDir, ticket });
+    const result = await executePipeline({ projectDir, ticket });
 
-  // --- JSON output (stdout, for n8n / worker) ---
-  console.error("\n================================================");
-  console.error(`  Pipeline ${result.status}`);
-  console.error("================================================");
+    // --- JSON output (stdout, for n8n / worker) ---
+    console.error("\n================================================");
+    console.error(`  Pipeline ${result.status}`);
+    console.error("================================================");
 
-  console.log(JSON.stringify({
-    status: result.status,
-    ...(result.status === "failed" ? { exit_code: result.exitCode } : {}),
-    ticket_id: ticket.ticketId,
-    ticket_title: ticket.title,
-    branch: result.branch,
-    project: result.project,
-  }));
+    console.log(JSON.stringify({
+      status: result.status,
+      ...(result.status === "failed" ? { exit_code: result.exitCode } : {}),
+      ticket_id: ticket.ticketId,
+      ticket_title: ticket.title,
+      branch: result.branch,
+      project: result.project,
+    }));
 
-  if (result.status === "failed") process.exit(result.exitCode);
+    if (result.status === "failed") process.exit(result.exitCode);
+  })();
 }
