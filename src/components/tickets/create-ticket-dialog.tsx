@@ -165,6 +165,7 @@ export function CreateTicketDialog({
               rows={4}
               {...register("body")}
             />
+            <p className="text-[11px] text-muted-foreground/60">Supports Markdown</p>
           </div>
 
           <div className="grid grid-cols-2 gap-4">

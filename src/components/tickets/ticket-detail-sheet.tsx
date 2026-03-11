@@ -24,6 +24,7 @@ import { StatusBadge, PriorityBadge } from "@/components/shared/status-badge";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { cn } from "@/lib/utils";
 import { useWorkspace } from "@/lib/workspace-context";
+import { MarkdownRenderer } from "@/components/shared/markdown-renderer";
 import type { Ticket, Project } from "@/lib/types";
 
 interface TicketDetailSheetProps {
@@ -91,6 +92,7 @@ export function TicketDetailSheet({
   const [deleting, setDeleting] = useState(false);
   const [copied, setCopied] = useState(false);
   const [copiedNumber, setCopiedNumber] = useState(false);
+  const [editingBody, setEditingBody] = useState(false);
   const [projects, setProjects] = useState<Project[]>([]);
   const titleRef = useRef<HTMLTextAreaElement>(null);
   const bodyRef = useRef<HTMLTextAreaElement>(null);
@@ -99,6 +101,7 @@ export function TicketDetailSheet({
     setCurrent(ticket);
     setConfirmDelete(false);
     setSaveError(null);
+    setEditingBody(false);
   }, [ticket]);
 
   useEffect(() => {
@@ -116,6 +119,16 @@ export function TicketDetailSheet({
     autoResize(titleRef.current);
     autoResize(bodyRef.current);
   }, [current?.id]);
+
+  useEffect(() => {
+    if (editingBody && bodyRef.current) {
+      autoResize(bodyRef.current);
+      bodyRef.current.focus();
+      // Move cursor to end
+      const len = bodyRef.current.value.length;
+      bodyRef.current.setSelectionRange(len, len);
+    }
+  }, [editingBody]);
 
   async function saveField(field: string, value: unknown) {
     if (!current) return;
@@ -150,6 +163,7 @@ export function TicketDetailSheet({
     if (newBody !== (current?.body ?? null)) {
       saveField("body", newBody);
     }
+    setEditingBody(false);
   }
 
   async function handleDelete() {
@@ -464,16 +478,32 @@ export function TicketDetailSheet({
 
           {/* Description */}
           <div className="px-8 pb-4">
-            <textarea
-              ref={bodyRef}
-              key={current.id + "-body"}
-              defaultValue={current.body ?? ""}
-              onInput={(e) => autoResize(e.currentTarget)}
-              onBlur={handleBodyBlur}
-              placeholder="Add a description…"
-              rows={4}
-              className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none leading-relaxed min-h-[120px]"
-            />
+            {editingBody ? (
+              <textarea
+                ref={bodyRef}
+                key={current.id + "-body"}
+                defaultValue={current.body ?? ""}
+                onInput={(e) => autoResize(e.currentTarget)}
+                onBlur={handleBodyBlur}
+                placeholder="Add a description…"
+                rows={4}
+                className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none leading-relaxed min-h-[120px]"
+              />
+            ) : current.body ? (
+              <div
+                onClick={() => setEditingBody(true)}
+                className="cursor-text min-h-[120px] rounded-md hover:bg-muted/30 transition-colors -mx-2 px-2 py-1"
+              >
+                <MarkdownRenderer content={current.body} />
+              </div>
+            ) : (
+              <div
+                onClick={() => setEditingBody(true)}
+                className="cursor-text min-h-[120px] text-sm text-muted-foreground/40 rounded-md hover:bg-muted/30 transition-colors -mx-2 px-2 py-1"
+              >
+                Add a description…
+              </div>
+            )}
           </div>
 
           {current.summary && (
