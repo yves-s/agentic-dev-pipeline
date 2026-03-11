@@ -7,7 +7,7 @@ A portable multi-agent system for autonomous software development with Claude Co
 A framework of generic agents, commands, and a pipeline runner that can be installed into any project. It provides:
 
 - **7 specialized agents** (Orchestrator, Backend, Frontend, Data-Engineer, DevOps, QA, Security)
-- **4 slash-commands** (`/ticket`, `/ship`, `/merge`, `/setup-pipeline`)
+- **5 slash-commands** (`/ticket`, `/ship`, `/merge`, `/setup-pipeline`, `/update-pipeline`)
 - **Pipeline runner** for VPS/CI execution
 - **Supabase integration** for ticket management
 - **Update mechanism** with version tracking and dry-run preview
@@ -73,6 +73,8 @@ Updates **only framework files** and never touches project-specific files:
 
 Framework skills are added/updated. Custom skills in `.claude/skills/` that are not part of the framework are never touched.
 
+If templates (CLAUDE.md structure, workflow tables) have changed, the script will prompt you to run `/update-pipeline` in Claude Code. This intelligently merges template changes into your project files without overwriting your customizations.
+
 ### Dry Run
 
 Preview what would change before updating:
@@ -112,7 +114,8 @@ agentic-dev-pipeline/
 │   ├── ticket.md           # Ticket → autonomous workflow → PR
 │   ├── ship.md             # Commit + push + PR
 │   ├── merge.md            # Squash merge after approval
-│   └── setup-pipeline.md   # Project config + Dev Board setup
+│   ├── setup-pipeline.md   # Project config + Dev Board setup
+│   └── update-pipeline.md  # Sync CLAUDE.md + project.json after update
 ├── skills/                 # Framework skills (auto-deployed)
 │   ├── brainstorming.md
 │   ├── writing-plans.md

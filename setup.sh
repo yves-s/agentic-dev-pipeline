@@ -22,6 +22,7 @@
 #   .claude/settings.json     Permissions
 #   .pipeline/run.sh          Pipeline runner
 #   .claude/.pipeline-version Version tracking
+#   .claude/.template-hash    Template change detection
 #
 # Project files (NEVER overwritten):
 #   CLAUDE.md                 Project-specific instructions
@@ -285,6 +286,28 @@ if [ "$MODE" = "update" ]; then
   # Write version
   echo "$FRAMEWORK_VERSION" > "$VERSION_FILE"
 
+  # --- Check if templates changed (CLAUDE.md, project.json structure) ---
+  TEMPLATE_HASH_FILE="$PROJECT_DIR/.claude/.template-hash"
+  CURRENT_TEMPLATE_HASH=""
+  if command -v md5 &>/dev/null; then
+    CURRENT_TEMPLATE_HASH=$(md5 -q "$FRAMEWORK_DIR/templates/CLAUDE.md" 2>/dev/null || echo "")
+  elif command -v md5sum &>/dev/null; then
+    CURRENT_TEMPLATE_HASH=$(md5sum "$FRAMEWORK_DIR/templates/CLAUDE.md" 2>/dev/null | cut -d' ' -f1)
+  fi
+
+  TEMPLATES_CHANGED=false
+  if [ -n "$CURRENT_TEMPLATE_HASH" ]; then
+    if [ -f "$TEMPLATE_HASH_FILE" ]; then
+      STORED_HASH=$(cat "$TEMPLATE_HASH_FILE")
+      if [ "$STORED_HASH" != "$CURRENT_TEMPLATE_HASH" ]; then
+        TEMPLATES_CHANGED=true
+      fi
+    else
+      # No hash stored yet — assume templates may have changed
+      TEMPLATES_CHANGED=true
+    fi
+  fi
+
   echo ""
   echo "================================================"
   echo "  Update complete → $FRAMEWORK_VERSION"
@@ -294,6 +317,14 @@ if [ "$MODE" = "update" ]; then
   echo "  ~ CLAUDE.md"
   echo "  ~ project.json"
   echo "  ~ .claude/skills/*"
+
+  if [ "$TEMPLATES_CHANGED" = true ]; then
+    echo ""
+    echo "  ⚠  CLAUDE.md Template hat sich geändert."
+    echo "     Öffne Claude Code und führe /update-pipeline aus,"
+    echo "     um CLAUDE.md und project.json abzugleichen."
+  fi
+
   echo ""
   exit 0
 fi
@@ -406,8 +437,13 @@ else
   echo "  ~ CLAUDE.md (exists, skipped)"
 fi
 
-# --- Write version ---
+# --- Write version + template hash ---
 echo "$FRAMEWORK_VERSION" > "$VERSION_FILE"
+if command -v md5 &>/dev/null; then
+  md5 -q "$FRAMEWORK_DIR/templates/CLAUDE.md" > "$PROJECT_DIR/.claude/.template-hash" 2>/dev/null || true
+elif command -v md5sum &>/dev/null; then
+  md5sum "$FRAMEWORK_DIR/templates/CLAUDE.md" 2>/dev/null | cut -d' ' -f1 > "$PROJECT_DIR/.claude/.template-hash" || true
+fi
 
 echo ""
 echo "================================================"
@@ -415,11 +451,9 @@ echo "  Setup complete → $FRAMEWORK_VERSION"
 echo "================================================"
 echo ""
 echo "Next steps:"
-echo "  1. Edit CLAUDE.md        — Architektur, Konventionen, Domain-Wissen"
-echo "  2. Edit project.json     — Stack, Build-Commands, Pfade anpassen"
-echo "  3. Run /setup-pipeline   — In Claude Code öffnen und /setup-pipeline ausführen"
+echo "  1. Run /setup-pipeline   — In Claude Code öffnen und /setup-pipeline ausführen"
 echo "                             (Stack erkennen, Config befüllen, Dev Board verbinden)"
-echo "  4. .claude/skills/       — Eigene Skills hinzufügen (optional)"
+echo "  2. .claude/skills/       — Eigene Skills hinzufügen (optional)"
 echo ""
 echo "Framework updaten:"
 echo "  $(basename "$FRAMEWORK_DIR")/setup.sh --update"

@@ -294,7 +294,9 @@ Adapt the Markdown output to the tool's conventions — content principles stay 
 8. Check: is the ticket too big? If yes, suggest a split
 9. Choose a clear, action-oriented title last (titles are easier to write after the body)
 10. Set properties: status, priority, type
-11. Ask the user where to deliver: Pipeline (Supabase), Notion, or Markdown only
+11. **Deliver the ticket automatically:**
+    - Read `project.json`. If `pipeline.project_id` is set → insert directly into Supabase (see Pipeline section above). Do NOT ask the user first.
+    - If no `project.json` or no `pipeline.project_id` → ask the user where to deliver: Pipeline (Supabase), Notion, or Markdown only.
 
 ## Full Example
 
