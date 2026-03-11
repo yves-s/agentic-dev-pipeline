@@ -4,7 +4,7 @@ import { useState, useCallback } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useRouter } from "next/navigation";
-import { Copy, Check, ArrowRight, CheckCircle2, AlertCircle, Loader2 } from "lucide-react";
+import { Copy, Check, ArrowRight, CheckCircle2, AlertCircle, Loader2, LogOut } from "lucide-react";
 import { useSlugCheck } from "@/lib/hooks/use-slug-check";
 import { createClient } from "@/lib/supabase/client";
 import { createWorkspaceSchema, type CreateWorkspaceInput } from "@/lib/validations/workspace";
@@ -35,6 +35,7 @@ export default function NewWorkspacePage() {
   const [apiKey, setApiKey] = useState<{ plaintext: string; slug: string } | null>(null);
   const [createdSlug, setCreatedSlug] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [signingOut, setSigningOut] = useState(false);
 
   const {
     register,
@@ -60,6 +61,13 @@ export default function NewWorkspacePage() {
     const name = e.target.value;
     setValue("name", name);
     setValue("slug", slugify(name));
+  }
+
+  async function handleSignOut() {
+    setSigningOut(true);
+    const supabase = createClient();
+    await supabase.auth.signOut();
+    router.push("/login");
   }
 
   async function handleCopy() {
@@ -170,7 +178,7 @@ export default function NewWorkspacePage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-muted/30 px-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Create your workspace</CardTitle>
@@ -262,6 +270,15 @@ export default function NewWorkspacePage() {
           </form>
         </CardContent>
       </Card>
+      <button
+        type="button"
+        onClick={handleSignOut}
+        disabled={signingOut}
+        className="mt-4 flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <LogOut className="h-3 w-3" />
+        {signingOut ? "Signing out…" : "Sign in with a different account"}
+      </button>
     </div>
   );
 }
