@@ -533,42 +533,17 @@ export function Board({
                     onAddTicket={handleAddTicket}
                     collapsed={filters.collapsedGroups.includes(groupKey)}
                     onToggleCollapsed={() => toggleGroupCollapsed(groupKey)}
+                    columnTotalCounts={columnCounts}
+                    allTicketsByStatus={(status: TicketStatus) => getTicketsForColumn(status)}
+                    loadingMore={loadingMore}
+                    onLoadMore={loadMore}
+                    isLastGroup={groupKey === (projectGroups[projectGroups.length - 1]?.projectId ?? "none")}
                   />
                 );
               })}
 
-              {/* Load-more row for grouped view — one button per column */}
-              <div className="flex gap-4 mt-2">
-                {visibleColumns.map((col) => {
-                  const colTickets = getTicketsForColumn(col.status);
-                  const totalCount = columnCounts[col.status] ?? colTickets.length;
-                  const hasMore = colTickets.length < totalCount;
-                  const loading = loadingMore[col.status] ?? false;
-
-                  return (
-                    <div key={col.status} className="w-72 shrink-0 flex justify-center">
-                      {hasMore && (
-                        <button
-                          type="button"
-                          onClick={() => loadMore(col.status)}
-                          disabled={loading}
-                          className="flex items-center gap-1.5 rounded-lg py-2 px-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50"
-                        >
-                          {loading ? (
-                            <>
-                              <Loader2 className="h-3 w-3 animate-spin" />
-                              Laden…
-                            </>
-                          ) : (
-                            `Mehr laden (${colTickets.length}/${totalCount})`
-                          )}
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
             </div>
+
           ) : (
             <div className="flex h-full gap-4 p-6">
               {visibleColumns.map((col) => {

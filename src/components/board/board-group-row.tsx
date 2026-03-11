@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
-import { ChevronRight, Plus } from "lucide-react";
+import { ChevronRight, Loader2, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TicketCard } from "./ticket-card";
 import type { Ticket } from "@/lib/types";
@@ -102,6 +102,12 @@ interface BoardGroupRowProps {
   onAddTicket?: (status: TicketStatus, projectId: string | null) => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
+  /** Column-level pagination (shown only on last group) */
+  columnTotalCounts?: Record<string, number>;
+  allTicketsByStatus?: (status: TicketStatus) => Ticket[];
+  loadingMore?: Record<string, boolean>;
+  onLoadMore?: (status: TicketStatus) => void;
+  isLastGroup?: boolean;
 }
 
 export function BoardGroupRow({
@@ -113,6 +119,11 @@ export function BoardGroupRow({
   onAddTicket,
   collapsed: controlledCollapsed,
   onToggleCollapsed,
+  columnTotalCounts,
+  allTicketsByStatus,
+  loadingMore,
+  onLoadMore,
+  isLastGroup,
 }: BoardGroupRowProps) {
   const [localCollapsed, setLocalCollapsed] = useState(false);
   const collapsed = controlledCollapsed ?? localCollapsed;
@@ -156,20 +167,56 @@ export function BoardGroupRow({
 
       {/* Columns row */}
       {!collapsed && (
-        <div className="flex gap-4 mt-1">
-          {columns.map((col) => (
-            <GroupCell
-              key={col.status}
-              status={col.status}
-              projectId={group.projectId}
-              tickets={ticketsByStatus.get(col.status) ?? []}
-              onTicketClick={onTicketClick}
-              isAgentActive={isAgentActive}
-              getAgentActivity={getAgentActivity}
-              onAddTicket={onAddTicket}
-            />
-          ))}
-        </div>
+        <>
+          <div className="flex gap-4 mt-1">
+            {columns.map((col) => (
+              <GroupCell
+                key={col.status}
+                status={col.status}
+                projectId={group.projectId}
+                tickets={ticketsByStatus.get(col.status) ?? []}
+                onTicketClick={onTicketClick}
+                isAgentActive={isAgentActive}
+                getAgentActivity={getAgentActivity}
+                onAddTicket={onAddTicket}
+              />
+            ))}
+          </div>
+
+          {/* Load-more buttons per column — rendered after the last group */}
+          {isLastGroup && onLoadMore && allTicketsByStatus && columnTotalCounts && (
+            <div className="flex gap-4 mt-2">
+              {columns.map((col) => {
+                const loaded = allTicketsByStatus(col.status);
+                const total = columnTotalCounts[col.status] ?? loaded.length;
+                const hasMore = loaded.length < total;
+                const loading = loadingMore?.[col.status] ?? false;
+
+                return (
+                  <div key={col.status} className="w-72 shrink-0 flex justify-center">
+                    {hasMore && (
+                      <button
+                        type="button"
+                        onClick={() => onLoadMore(col.status)}
+                        disabled={loading}
+                        className="flex items-center gap-1.5 rounded-lg py-2 px-3 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50"
+                      >
+                        {loading ? (
+                          <>
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Laden…
+                          </>
+                        ) : (
+                          `Mehr laden (${loaded.length}/${total})`
+                        )}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
