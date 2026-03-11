@@ -44,7 +44,8 @@ Falls Pipeline konfiguriert ist, sind Status-Updates **PFLICHT**:
 
 | Workflow-Schritt | Board-Status | Wann |
 |---|---|---|
-| `/ticket` — Ticket aufnehmen | **`in_progress`** | Sofort nach Ticket-Auswahl, VOR dem Coding |
+| `/ticket` — Ticket schreiben | — | Erstellt ein neues Ticket im Board |
+| `/develop` — Ticket implementieren | **`in_progress`** | Sofort nach Ticket-Auswahl, VOR dem Coding |
 | `/ship` — PR erstellen | **`in_review`** | Nach PR-Erstellung |
 | `/merge` — PR mergen | **`done`** | Nach erfolgreichem Merge |
 
