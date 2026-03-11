@@ -195,7 +195,8 @@ async function postEvent(apiUrl: string, apiKey: string, payload: Event) {
       "Content-Type": "application/json",
       "X-Pipeline-Key": apiKey
     },
-    body: JSON.stringify(payload)
+    body: JSON.stringify(payload),
+    signal: AbortSignal.timeout(3000), // 3s timeout, matches current curl --max-time 3
   });
 }
 ```
@@ -338,7 +339,7 @@ fi
 
 ### No Build Step
 
-No `tsc` compilation needed. `tsx` (TypeScript Execute) runs `.ts` files directly. Listed as a dependency in `package.json`.
+No `tsc` compilation needed. `tsx` (TypeScript Execute) runs `.ts` files directly. Both `tsx` and `@anthropic-ai/claude-agent-sdk` are listed as **production dependencies** (`dependencies`, not `devDependencies`) in `package.json`, so `npm install --production` installs them correctly.
 
 ### `--update` Flow
 
@@ -353,10 +354,13 @@ setup.sh --update
 
 | File                              | Lines | Replaced By          |
 |-----------------------------------|-------|----------------------|
-| `pipeline/run.sh`                 | 114   | `pipeline/run.ts`    |
 | `pipeline/send-event.sh`         | 44    | SDK hooks            |
 | `.claude/scripts/devboard-hook.sh`| 68    | SDK hooks            |
 | `vps/worker.sh`                   | 279   | `pipeline/worker.ts` |
+
+**Note on `pipeline/run.sh`:** The old shell script is replaced by `pipeline/run.ts`. A thin 3-line `run.sh` wrapper stays as a shim for backwards compatibility (`exec npx tsx run.ts "$@"`). This ensures the systemd service and any external scripts referencing `run.sh` continue to work.
+
+**Cleanup in `setup.sh --update`:** The update path must also remove `send-event.sh` from `.pipeline/` and `devboard-hook.sh` from `.claude/scripts/` in target projects, since these files were previously installed by `setup.sh`.
 
 ## Rollout Plan
 
