@@ -76,12 +76,7 @@ Zeige kurz an: `▶ Ticket T-{N}: {title}` — dann direkt weiter, NICHT auf Bes
 
 **Falls Pipeline konfiguriert — PFLICHT, NICHT ÜBERSPRINGEN. Alle 3 Aktionen ausführen:**
 
-**3a) Event senden** (sofort, damit das Board den aktiven Agent anzeigt):
-```bash
-bash .pipeline/send-event.sh {N} orchestrator agent_started
-```
-
-**3b) Status updaten + Projekt zuordnen** via `mcp__claude_ai_Supabase__execute_sql`.
+**3a) Status updaten + Projekt zuordnen** via `mcp__claude_ai_Supabase__execute_sql`.
 Die Werte `{pipeline.project_name}` und `{pipeline.workspace_id}` stehen in `project.json` → Lies sie dort aus und setze sie direkt ein:
 ```sql
 UPDATE public.tickets
@@ -98,7 +93,7 @@ RETURNING number, title, status;
 ```
 Warte auf die Bestätigung, dass das Update erfolgreich war, bevor du weitermachst.
 
-**3c) Feature-Branch erstellen:**
+**3b) Feature-Branch erstellen:**
 ```bash
 git checkout main && git pull origin main
 git checkout -b {abgeleiteter-prefix}/{ticket-nummer}-{kurzbeschreibung}
@@ -114,19 +109,11 @@ Lies `project.json` für Pfade und Stack-Details.
 
 ### 5. Implementierung (parallel wo möglich)
 
-**Für JEDEN Agent-Spawn (PFLICHT falls Pipeline konfiguriert):**
+**Agent-Events werden automatisch vom SDK getrackt.** Ausgabe weiterhin anzeigen:
+- Vor Agent-Start: `▶ [{agent-type}] — {was der Agent macht}`
+- Nach Agent-Ende: `✓ [{agent-type}] abgeschlossen`
 
-```
-VOR Agent-Start:   bash .pipeline/send-event.sh {N} {agent-type} agent_started
-                   Ausgabe: ▶ [{agent-type}] — {was der Agent macht}
-
-NACH Agent-Ende:   bash .pipeline/send-event.sh {N} {agent-type} completed
-                   Ausgabe: ✓ [{agent-type}] abgeschlossen
-```
-
-`{agent-type}` = `frontend`, `backend`, `data-engineer`, `qa`, `devops`, `security`
-
-Spawne Agents via Task-Tool mit konkreten Instruktionen:
+Spawne Agents via Agent-Tool mit konkreten Instruktionen:
 
 | Agent | `model` | Wann |
 |-------|---------|------|
