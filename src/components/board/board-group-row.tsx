@@ -45,8 +45,6 @@ function GroupCell({
   hasMore,
   isLoadingMore,
   onLoadMore,
-  loadedCount,
-  totalCount,
 }: {
   status: TicketStatus;
   projectId: string | null;
@@ -60,8 +58,6 @@ function GroupCell({
   hasMore?: boolean;
   isLoadingMore?: boolean;
   onLoadMore?: () => void;
-  loadedCount?: number;
-  totalCount?: number;
 }) {
   const droppableId = `${status}__${projectId ?? "none"}`;
   const { setNodeRef, isOver } = useDroppable({ id: droppableId });
@@ -101,7 +97,7 @@ function GroupCell({
               Laden…
             </>
           ) : (
-            `Mehr laden (${loadedCount}/${totalCount})`
+            "Mehr laden…"
           )}
         </button>
       )}
@@ -129,7 +125,7 @@ interface BoardGroupRowProps {
   onAddTicket?: (status: TicketStatus, projectId: string | null) => void;
   collapsed?: boolean;
   onToggleCollapsed?: () => void;
-  /** Column-level pagination — passed through to each cell */
+  /** Column-level pagination — passed through to cells that have tickets */
   columnTotalCounts?: Record<string, number>;
   allTicketsByStatus?: (status: TicketStatus) => Ticket[];
   loadingMore?: Record<string, boolean>;
@@ -194,16 +190,20 @@ export function BoardGroupRow({
       {!collapsed && (
         <div className="flex gap-4 mt-1">
           {columns.map((col) => {
-            const loaded = allTicketsByStatus?.(col.status);
+            const cellTickets = ticketsByStatus.get(col.status) ?? [];
+            // Only show load-more if this cell actually has tickets AND the
+            // column globally has more tickets than what's loaded.
+            const allLoaded = allTicketsByStatus?.(col.status);
             const total = columnTotalCounts?.[col.status];
-            const hasMore = loaded && total ? loaded.length < total : false;
+            const columnHasMore = allLoaded && total ? allLoaded.length < total : false;
+            const hasMore = cellTickets.length > 0 && columnHasMore;
 
             return (
               <GroupCell
                 key={col.status}
                 status={col.status}
                 projectId={group.projectId}
-                tickets={ticketsByStatus.get(col.status) ?? []}
+                tickets={cellTickets}
                 onTicketClick={onTicketClick}
                 isAgentActive={isAgentActive}
                 getAgentActivity={getAgentActivity}
@@ -211,8 +211,6 @@ export function BoardGroupRow({
                 hasMore={hasMore}
                 isLoadingMore={loadingMore?.[col.status] ?? false}
                 onLoadMore={onLoadMore ? () => onLoadMore(col.status) : undefined}
-                loadedCount={loaded?.length}
-                totalCount={total}
               />
             );
           })}
