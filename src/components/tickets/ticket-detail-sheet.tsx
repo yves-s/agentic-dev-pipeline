@@ -242,7 +242,7 @@ export function TicketDetailSheet({
           </Tooltip>
         </div>
 
-        <div className="flex-1 overflow-y-auto">
+        <div className="flex-1 overflow-y-auto flex flex-col">
           {/* Title */}
           <div className="px-8 pb-3">
             <textarea
@@ -487,19 +487,19 @@ export function TicketDetailSheet({
                 onBlur={handleBodyBlur}
                 placeholder="Add a description…"
                 rows={4}
-                className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none leading-relaxed min-h-[120px]"
+                className="w-full resize-none bg-transparent text-sm text-foreground placeholder:text-muted-foreground/40 outline-none overflow-hidden leading-relaxed"
               />
             ) : current.body ? (
               <div
                 onClick={() => setEditingBody(true)}
-                className="cursor-text min-h-[120px] rounded-md hover:bg-muted/30 transition-colors -mx-2 px-2 py-1"
+                className="cursor-text rounded-md hover:bg-muted/30 transition-colors -mx-2 px-2 py-1"
               >
                 <MarkdownRenderer content={current.body} />
               </div>
             ) : (
               <div
                 onClick={() => setEditingBody(true)}
-                className="cursor-text min-h-[120px] text-sm text-muted-foreground/40 rounded-md hover:bg-muted/30 transition-colors -mx-2 px-2 py-1"
+                className="cursor-text text-sm text-muted-foreground/40 rounded-md hover:bg-muted/30 transition-colors -mx-2 px-2 py-1"
               >
                 Add a description…
               </div>

@@ -91,9 +91,12 @@ export function CreateTicketDialog({
       }
       if (defaultProjectId !== undefined) {
         setValue("project_id", defaultProjectId ?? null);
+      } else if (projects.length === 1) {
+        // Auto-assign when there's only one project
+        setValue("project_id", projects[0].id);
       }
     }
-  }, [open, defaultStatus, defaultProjectId, setValue]);
+  }, [open, defaultStatus, defaultProjectId, projects, setValue]);
 
   const watchedStatus = watch("status") ?? defaultStatus ?? "backlog";
   const watchedProjectId = watch("project_id");
