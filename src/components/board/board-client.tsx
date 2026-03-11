@@ -9,6 +9,7 @@ const Board = dynamic(() => import("./board").then((m) => m.Board), {
 
 interface BoardClientProps {
   initialTickets: Ticket[];
+  initialColumnCounts: Record<string, number>;
   workspaceId: string;
   workspaceSlug: string;
   projects: Project[];
@@ -17,6 +18,7 @@ interface BoardClientProps {
 
 export function BoardClient({
   initialTickets,
+  initialColumnCounts,
   workspaceId,
   workspaceSlug,
   projects,
@@ -25,6 +27,7 @@ export function BoardClient({
   return (
     <Board
       initialTickets={initialTickets}
+      initialColumnCounts={initialColumnCounts}
       workspaceId={workspaceId}
       workspaceSlug={workspaceSlug}
       projects={projects}

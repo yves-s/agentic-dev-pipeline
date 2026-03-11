@@ -2,6 +2,7 @@
 
 import { useDroppable } from "@dnd-kit/core";
 import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable";
+import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { TicketCard } from "./ticket-card";
 import type { Ticket } from "@/lib/types";
@@ -11,6 +12,10 @@ interface BoardColumnProps {
   status: TicketStatus;
   label: string;
   tickets: Ticket[];
+  totalCount?: number;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
   onTicketClick: (ticket: Ticket) => void;
   isAgentActive?: (ticketId: string) => boolean;
   getAgentActivity?: (ticketId: string) => { agent_type: string; event_type: string } | null;
@@ -30,12 +35,17 @@ export function BoardColumn({
   status,
   label,
   tickets,
+  totalCount,
+  hasMore,
+  isLoadingMore,
+  onLoadMore,
   onTicketClick,
   isAgentActive,
   getAgentActivity,
   onAddTicket,
 }: BoardColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id: status });
+  const displayCount = totalCount ?? tickets.length;
 
   return (
     <div className="flex w-72 shrink-0 flex-col gap-3">
@@ -49,7 +59,7 @@ export function BoardColumn({
         />
         <span className="text-sm font-medium">{label}</span>
         <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground font-medium">
-          {tickets.length}
+          {displayCount}
         </span>
       </div>
 
@@ -74,6 +84,24 @@ export function BoardColumn({
             />
           ))}
         </SortableContext>
+
+        {hasMore && (
+          <button
+            type="button"
+            onClick={onLoadMore}
+            disabled={isLoadingMore}
+            className="mt-1 flex items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors disabled:opacity-50"
+          >
+            {isLoadingMore ? (
+              <>
+                <Loader2 className="h-3 w-3 animate-spin" />
+                Laden…
+              </>
+            ) : (
+              `Mehr Tickets laden (${tickets.length}/${displayCount})`
+            )}
+          </button>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { BoardHeader } from "@/components/board/board-header";
 import { BoardClient } from "@/components/board/board-client";
+import { BOARD_COLUMNS, TICKETS_PER_COLUMN_PAGE } from "@/lib/constants";
 import type { Ticket, Project, WorkspaceMember } from "@/lib/types";
 
 export default async function BoardPage({
@@ -20,14 +21,24 @@ export default async function BoardPage({
   const tickets: Ticket[] = [];
   const projects: Project[] = [];
   const members: WorkspaceMember[] = [];
+  const initialColumnCounts: Record<string, number> = {};
 
   if (workspace) {
-    const [ticketsResult, projectsResult, membersResult] = await Promise.all([
+    const ticketQueries = BOARD_COLUMNS.map((col) =>
       supabase
         .from("tickets")
-        .select("*, project:projects(id, name, description, workspace_id, created_at, updated_at)")
+        .select(
+          "*, project:projects(id, name, description, workspace_id, created_at, updated_at)",
+          { count: "exact" }
+        )
         .eq("workspace_id", workspace.id)
-        .order("created_at", { ascending: false }),
+        .eq("status", col.status)
+        .order("updated_at", { ascending: false })
+        .limit(TICKETS_PER_COLUMN_PAGE)
+    );
+
+    const [ticketResults, projectsResult, membersResult] = await Promise.all([
+      Promise.all(ticketQueries),
       supabase
         .from("projects")
         .select("*")
@@ -39,7 +50,12 @@ export default async function BoardPage({
         .eq("workspace_id", workspace.id),
     ]);
 
-    if (ticketsResult.data) tickets.push(...(ticketsResult.data as Ticket[]));
+    for (let i = 0; i < BOARD_COLUMNS.length; i++) {
+      const result = ticketResults[i];
+      if (result.data) tickets.push(...(result.data as Ticket[]));
+      initialColumnCounts[BOARD_COLUMNS[i].status] = result.count ?? 0;
+    }
+
     if (projectsResult.data) projects.push(...(projectsResult.data as Project[]));
     if (membersResult.data) members.push(...(membersResult.data as WorkspaceMember[]));
   }
@@ -49,6 +65,7 @@ export default async function BoardPage({
       <BoardHeader workspaceId={workspace?.id ?? ""} />
       <BoardClient
         initialTickets={tickets}
+        initialColumnCounts={initialColumnCounts}
         workspaceId={workspace?.id ?? ""}
         workspaceSlug={slug}
         projects={projects}

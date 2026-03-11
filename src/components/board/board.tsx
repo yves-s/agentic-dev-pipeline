@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import {
   DndContext,
   DragEndEvent,
@@ -17,7 +17,7 @@ import {
 import { arrayMove } from "@dnd-kit/sortable";
 import { createClient } from "@/lib/supabase/client";
 import { useRouter, usePathname, useSearchParams } from "next/navigation";
-import { BOARD_COLUMNS } from "@/lib/constants";
+import { BOARD_COLUMNS, TICKETS_PER_COLUMN_PAGE } from "@/lib/constants";
 import type { TicketStatus, TicketPriority } from "@/lib/constants";
 import type { Ticket, Project, WorkspaceMember } from "@/lib/types";
 import { cn } from "@/lib/utils";
@@ -94,6 +94,7 @@ const columnAwareCollision: CollisionDetection = (args) => {
 
 interface BoardProps {
   initialTickets: Ticket[];
+  initialColumnCounts: Record<string, number>;
   workspaceId: string;
   workspaceSlug: string;
   projects: Project[];
@@ -102,6 +103,7 @@ interface BoardProps {
 
 export function Board({
   initialTickets,
+  initialColumnCounts,
   workspaceId,
   workspaceSlug,
   projects,
@@ -111,7 +113,26 @@ export function Board({
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const [tickets, setTickets] = useState<Ticket[]>(initialTickets);
-  useTicketRealtime(workspaceId, setTickets);
+  const [columnCounts, setColumnCounts] = useState<Record<string, number>>(initialColumnCounts);
+  const [columnPages, setColumnPages] = useState<Record<string, number>>(
+    () => Object.fromEntries(BOARD_COLUMNS.map((col) => [col.status, 1]))
+  );
+  const [loadingMore, setLoadingMore] = useState<Record<string, boolean>>({});
+
+  const handleCountChange = useCallback(
+    (changes: { status: string; delta: number }[]) => {
+      setColumnCounts((prev) => {
+        const next = { ...prev };
+        for (const { status, delta } of changes) {
+          next[status] = Math.max(0, (next[status] ?? 0) + delta);
+        }
+        return next;
+      });
+    },
+    []
+  );
+
+  useTicketRealtime(workspaceId, setTickets, handleCountChange);
   const [activeTicket, setActiveTicket] = useState<Ticket | null>(null);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [sheetOpen, setSheetOpen] = useState(false);
@@ -221,9 +242,41 @@ export function Board({
     return filteredTickets.filter((t) => t.status === status);
   }
 
+  async function loadMore(status: TicketStatus) {
+    const page = columnPages[status] ?? 1;
+    const offset = page * TICKETS_PER_COLUMN_PAGE;
+    setLoadingMore((prev) => ({ ...prev, [status]: true }));
+
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("tickets")
+      .select(
+        "*, project:projects(id, name, description, workspace_id, created_at, updated_at)"
+      )
+      .eq("workspace_id", workspaceId)
+      .eq("status", status)
+      .order("updated_at", { ascending: false })
+      .range(offset, offset + TICKETS_PER_COLUMN_PAGE - 1);
+
+    if (data) {
+      setTickets((prev) => {
+        const existingIds = new Set(prev.map((t) => t.id));
+        const newTickets = (data as Ticket[]).filter(
+          (t) => !existingIds.has(t.id)
+        );
+        return [...prev, ...newTickets];
+      });
+      setColumnPages((prev) => ({ ...prev, [status]: page + 1 }));
+    }
+    setLoadingMore((prev) => ({ ...prev, [status]: false }));
+  }
+
+  const [dragOriginStatus, setDragOriginStatus] = useState<TicketStatus | null>(null);
+
   function handleDragStart(event: DragStartEvent) {
     const ticket = tickets.find((t) => t.id === event.active.id);
     setActiveTicket(ticket ?? null);
+    setDragOriginStatus(ticket?.status ?? null);
   }
 
   function handleDragOver(event: DragOverEvent) {
@@ -254,13 +307,29 @@ export function Board({
     const { active, over } = event;
     setActiveTicket(null);
 
-    if (!over) return;
+    if (!over) {
+      setDragOriginStatus(null);
+      return;
+    }
 
     const activeId = active.id as string;
     const overId = over.id as string;
 
     const activeTicket = tickets.find((t) => t.id === activeId);
-    if (!activeTicket) return;
+    if (!activeTicket) {
+      setDragOriginStatus(null);
+      return;
+    }
+
+    // Adjust column counts if status changed
+    if (dragOriginStatus && dragOriginStatus !== activeTicket.status) {
+      setColumnCounts((prev) => ({
+        ...prev,
+        [dragOriginStatus]: Math.max(0, (prev[dragOriginStatus] ?? 0) - 1),
+        [activeTicket.status]: (prev[activeTicket.status] ?? 0) + 1,
+      }));
+    }
+    setDragOriginStatus(null);
 
     // Update in DB
     const supabase = createClient();
@@ -307,9 +376,19 @@ export function Board({
   }
 
   function handleUpdated(updated: Ticket) {
-    setTickets((prev) =>
-      prev.map((t) => (t.id === updated.id ? updated : t))
-    );
+    let oldStatus: TicketStatus | undefined;
+    setTickets((prev) => {
+      const existing = prev.find((t) => t.id === updated.id);
+      if (existing) oldStatus = existing.status;
+      return prev.map((t) => (t.id === updated.id ? updated : t));
+    });
+    if (oldStatus && oldStatus !== updated.status) {
+      setColumnCounts((prev) => ({
+        ...prev,
+        [oldStatus!]: Math.max(0, (prev[oldStatus!] ?? 0) - 1),
+        [updated.status]: (prev[updated.status] ?? 0) + 1,
+      }));
+    }
     setSelectedTicket(updated);
   }
 
@@ -319,10 +398,21 @@ export function Board({
 
   function handleTicketAdded(ticket: Ticket) {
     setTickets((prev) => [ticket, ...prev]);
+    setColumnCounts((prev) => ({
+      ...prev,
+      [ticket.status]: (prev[ticket.status] ?? 0) + 1,
+    }));
     setAddTicketDialog((prev) => ({ ...prev, open: false }));
   }
 
   function handleDeleted(id: string) {
+    const ticket = tickets.find((t) => t.id === id);
+    if (ticket) {
+      setColumnCounts((prev) => ({
+        ...prev,
+        [ticket.status]: Math.max(0, (prev[ticket.status] ?? 0) - 1),
+      }));
+    }
     setTickets((prev) => prev.filter((t) => t.id !== id));
     const params = new URLSearchParams(searchParams.toString());
     params.delete("ticket");
@@ -356,7 +446,7 @@ export function Board({
               {/* Column headers — sticky top */}
               <div className="flex gap-4 mb-4 sticky top-0 z-10 bg-background pb-2">
                 {visibleColumns.map((col) => {
-                  const count = filteredTickets.filter(
+                  const count = columnCounts[col.status] ?? filteredTickets.filter(
                     (t) => t.status === col.status
                   ).length;
                   return (
@@ -394,18 +484,26 @@ export function Board({
             </div>
           ) : (
             <div className="flex h-full gap-4 p-6">
-              {visibleColumns.map((col) => (
-                <BoardColumn
-                  key={col.status}
-                  status={col.status}
-                  label={col.label}
-                  tickets={getTicketsForColumn(col.status)}
-                  onTicketClick={handleTicketClick}
-                  isAgentActive={isActive}
-                  getAgentActivity={getActivity}
-                  onAddTicket={handleAddTicket}
-                />
-              ))}
+              {visibleColumns.map((col) => {
+                const colTickets = getTicketsForColumn(col.status);
+                const totalCount = columnCounts[col.status] ?? colTickets.length;
+                return (
+                  <BoardColumn
+                    key={col.status}
+                    status={col.status}
+                    label={col.label}
+                    tickets={colTickets}
+                    totalCount={totalCount}
+                    hasMore={colTickets.length < totalCount}
+                    isLoadingMore={loadingMore[col.status] ?? false}
+                    onLoadMore={() => loadMore(col.status)}
+                    onTicketClick={handleTicketClick}
+                    isAgentActive={isActive}
+                    getAgentActivity={getActivity}
+                    onAddTicket={handleAddTicket}
+                  />
+                );
+              })}
             </div>
           )}
 

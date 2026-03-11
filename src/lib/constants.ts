@@ -20,6 +20,8 @@ export const PIPELINE_STATUSES = [
   "failed",
 ] as const;
 
+export const TICKETS_PER_COLUMN_PAGE = 20;
+
 export const BOARD_COLUMNS: { status: TicketStatus; label: string }[] = [
   { status: "backlog", label: "Backlog" },
   { status: "ready_to_develop", label: "Ready" },
