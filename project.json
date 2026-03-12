@@ -2,8 +2,8 @@
   "name": "agentic-dev-pipeline",
   "description": "Portables Multi-Agent-Framework für autonome Softwareentwicklung mit Claude Code",
   "stack": {
-    "language": "bash",
-    "package_manager": "none"
+    "language": "TypeScript / Bash",
+    "package_manager": "npm"
   },
   "build": {
     "web": "echo 'No build step'",

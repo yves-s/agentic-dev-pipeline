@@ -77,6 +77,15 @@ get_framework_version() {
 
 FRAMEWORK_VERSION=$(get_framework_version)
 
+# --- Self-install guard ---
+# The framework repo itself uses symlinks (.claude/commands → ../commands etc.)
+# Running setup.sh on itself would try to copy files onto themselves.
+if [ "$(cd "$FRAMEWORK_DIR" && pwd -P)" = "$(cd "$PROJECT_DIR" && pwd -P)" ]; then
+  echo "Error: Cannot install framework into itself."
+  echo "The framework repo uses symlinks — see .claude/commands, .claude/skills, .claude/agents."
+  exit 1
+fi
+
 # --- Header ---
 echo ""
 echo "================================================"
