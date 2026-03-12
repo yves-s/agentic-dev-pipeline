@@ -41,6 +41,15 @@ const COLUMN_DOT: Record<TicketStatus, string> = {
   cancelled: "bg-red-400",
 };
 
+const COLUMN_HEADER_BG: Record<TicketStatus, string> = {
+  backlog: "bg-slate-100",
+  ready_to_develop: "bg-sky-100",
+  in_progress: "bg-amber-100",
+  in_review: "bg-violet-100",
+  done: "bg-emerald-100",
+  cancelled: "bg-red-100",
+};
+
 function buildProjectGroups(
   tickets: Ticket[],
   projects: Project[]
@@ -514,13 +523,20 @@ export function Board({
                       key={col.status}
                       className="w-72 shrink-0 flex items-center gap-2 px-1"
                     >
-                      <span
+                      <div
                         className={cn(
-                          "h-2.5 w-2.5 rounded-full shrink-0",
-                          COLUMN_DOT[col.status] ?? "bg-slate-400"
+                          "flex items-center gap-1.5 rounded-full px-2.5 py-0.5",
+                          COLUMN_HEADER_BG[col.status] ?? "bg-slate-100"
                         )}
-                      />
-                      <span className="text-sm font-medium">{col.label}</span>
+                      >
+                        <span
+                          className={cn(
+                            "h-2 w-2 rounded-full shrink-0",
+                            COLUMN_DOT[col.status] ?? "bg-slate-400"
+                          )}
+                        />
+                        <span className="text-sm font-medium">{col.label}</span>
+                      </div>
                       <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground font-medium">
                         {count}
                       </span>

@@ -9,6 +9,15 @@ import { TicketCard } from "./ticket-card";
 import type { Ticket } from "@/lib/types";
 import type { TicketStatus } from "@/lib/constants";
 
+const COLUMN_BG: Record<TicketStatus, string> = {
+  backlog: "bg-slate-50",
+  ready_to_develop: "bg-sky-50",
+  in_progress: "bg-amber-50",
+  in_review: "bg-violet-50",
+  done: "bg-emerald-50",
+  cancelled: "bg-red-50",
+};
+
 export interface ProjectGroup {
   projectId: string | null;
   projectName: string | null;
@@ -67,7 +76,7 @@ function GroupCell({
       ref={setNodeRef}
       className={cn(
         "w-72 shrink-0 flex flex-col gap-2 rounded-xl p-2 min-h-[60px] transition-colors",
-        isOver ? "bg-primary/5 ring-1 ring-primary/20" : "bg-muted/30"
+        isOver ? "bg-primary/5 ring-1 ring-primary/20" : COLUMN_BG[status] ?? "bg-muted/30"
       )}
     >
       <SortableContext

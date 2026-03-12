@@ -31,6 +31,24 @@ const COLUMN_DOT: Record<TicketStatus, string> = {
   cancelled: "bg-red-400",
 };
 
+const COLUMN_HEADER_BG: Record<TicketStatus, string> = {
+  backlog: "bg-slate-100",
+  ready_to_develop: "bg-sky-100",
+  in_progress: "bg-amber-100",
+  in_review: "bg-violet-100",
+  done: "bg-emerald-100",
+  cancelled: "bg-red-100",
+};
+
+const COLUMN_BG: Record<TicketStatus, string> = {
+  backlog: "bg-slate-50",
+  ready_to_develop: "bg-sky-50",
+  in_progress: "bg-amber-50",
+  in_review: "bg-violet-50",
+  done: "bg-emerald-50",
+  cancelled: "bg-red-50",
+};
+
 export function BoardColumn({
   status,
   label,
@@ -51,13 +69,20 @@ export function BoardColumn({
     <div className="flex w-72 shrink-0 flex-col gap-3">
       {/* Column header */}
       <div className="flex items-center gap-2 px-1">
-        <span
+        <div
           className={cn(
-            "h-2.5 w-2.5 rounded-full shrink-0",
-            COLUMN_DOT[status] ?? "bg-slate-400"
+            "flex items-center gap-1.5 rounded-full px-2.5 py-0.5",
+            COLUMN_HEADER_BG[status] ?? "bg-slate-100"
           )}
-        />
-        <span className="text-sm font-medium">{label}</span>
+        >
+          <span
+            className={cn(
+              "h-2 w-2 rounded-full shrink-0",
+              COLUMN_DOT[status] ?? "bg-slate-400"
+            )}
+          />
+          <span className="text-sm font-medium">{label}</span>
+        </div>
         <span className="ml-auto rounded-full bg-muted px-2 py-0.5 text-xs text-muted-foreground font-medium">
           {displayCount}
         </span>
@@ -70,7 +95,7 @@ export function BoardColumn({
           "flex flex-1 flex-col gap-2 rounded-xl p-2 min-h-[200px] overflow-y-auto transition-colors",
           isOver
             ? "bg-primary/5 ring-1 ring-primary/20"
-            : "bg-muted/50"
+            : COLUMN_BG[status] ?? "bg-muted/50"
         )}
       >
         <SortableContext items={tickets.map((t) => t.id)} strategy={verticalListSortingStrategy}>
