@@ -212,6 +212,10 @@ if [ "$MODE" = "update" ]; then
     echo "  - .claude/scripts/devboard-hook.sh (replaced by SDK hooks)"
     CHANGES=$((CHANGES + 1))
   fi
+  if [ -f "$PROJECT_DIR/.pipeline/lib/mcp-tools.ts" ]; then
+    echo "  - .pipeline/lib/mcp-tools.ts (removed — non-functional in SDK mode)"
+    CHANGES=$((CHANGES + 1))
+  fi
 
   # Skills (framework skills only — project-specific skills are never touched)
   for f in "$FRAMEWORK_DIR/skills/"*.md; do
@@ -339,6 +343,7 @@ if [ "$MODE" = "update" ]; then
   chmod +x "$PROJECT_DIR/.pipeline/"*.sh 2>/dev/null || true
   # Cleanup removed files
   rm -f "$PROJECT_DIR/.pipeline/send-event.sh"
+  rm -f "$PROJECT_DIR/.pipeline/lib/mcp-tools.ts"
   rm -f "$PROJECT_DIR/.claude/scripts/devboard-hook.sh"
   # Install dependencies
   if [ -f "$PROJECT_DIR/.pipeline/package.json" ]; then
