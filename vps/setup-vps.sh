@@ -181,10 +181,6 @@ h "systemd Services installieren"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
-# Worker-Script installieren
-install -m 755 "$SCRIPT_DIR/worker.sh" /home/claude-dev/worker.sh
-chown claude-dev:claude-dev /home/claude-dev/worker.sh
-
 # Service-Template installieren
 install -m 644 "$SCRIPT_DIR/agentic-dev-pipeline@.service" \
   /etc/systemd/system/agentic-dev-pipeline@.service

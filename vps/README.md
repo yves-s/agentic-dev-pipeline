@@ -10,14 +10,14 @@ Supabase (tickets)
     │  status = 'ready_to_develop'
     │
     ▼
-worker.sh (pollt alle 60s)
+worker.ts (pollt alle 60s via npx tsx)
     │
     │  claim: pipeline_status → 'running'
     │
     ▼
-.pipeline/run.sh <ticket_number> <title> <body> <labels>
+.pipeline/run.ts → SDK query() mit Orchestrator-Prompt
     │
-    │  claude --agent orchestrator --dangerously-skip-permissions
+    │  Agents spawnen, Build-Check, Commit
     │
     ▼
 GitHub PR + Supabase status → 'in_review'
@@ -89,9 +89,9 @@ Für jeden Worker eine `.env.{projekt-slug}` Datei:
 ```bash
 cat > /home/claude-dev/.env.mein-projekt <<'EOF'
 # Supabase
-SUPABASE_URL=https://usvzrksqbtwasgvolkyu.supabase.co
+SUPABASE_URL=https://xxx.supabase.co
 SUPABASE_SERVICE_KEY=eyJ...
-SUPABASE_PROJECT_ID=dc2b647e-80cb-4661-8f27-ff811534a0a8
+SUPABASE_PROJECT_ID=<uuid-aus-projects-tabelle>
 
 # Projekt
 PROJECT_DIR=/home/claude-dev/mein-projekt
@@ -223,7 +223,7 @@ cd ~/agentic-dev-pipeline && git pull
 cd ~/mein-projekt
 ~/agentic-dev-pipeline/setup.sh --update
 
-# Worker neu starten (damit worker.sh aktuell ist)
+# Worker neu starten (damit worker.ts aktuell ist)
 sudo systemctl restart agentic-dev-pipeline@mein-projekt
 ```
 
