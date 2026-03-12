@@ -72,9 +72,9 @@ Via `mcp__claude_ai_Supabase__execute_sql` mit `project_id` aus `pipeline.projec
 
 Zeige kurz an: `▶ Ticket T-{N}: {title}` — dann direkt weiter, NICHT auf Bestätigung warten.
 
-### 3. Status auf "in_progress" + Feature-Branch + Agent-Event
+### 3. Status auf "in_progress" + Feature-Branch + Pipeline-Event
 
-**Falls Pipeline konfiguriert — PFLICHT, NICHT ÜBERSPRINGEN. Alle 3 Aktionen ausführen:**
+**Falls Pipeline konfiguriert — PFLICHT, NICHT ÜBERSPRINGEN. Alle Aktionen ausführen:**
 
 **3a) Status updaten + Projekt zuordnen** via `mcp__claude_ai_Supabase__execute_sql`.
 Die Werte `{pipeline.project_name}` und `{pipeline.workspace_id}` stehen in `project.json` → Lies sie dort aus und setze sie direkt ein:
@@ -99,6 +99,11 @@ git checkout main && git pull origin main
 git checkout -b {abgeleiteter-prefix}/{ticket-nummer}-{kurzbeschreibung}
 ```
 
+**3c) Pipeline-Event senden** (Board zeigt aktiven Orchestrator):
+```bash
+bash .claude/scripts/send-event.sh {N} orchestrator agent_started
+```
+
 ### 4. Planung (SELBST, kein Planner-Agent)
 
 **Lies nur die 5-10 betroffenen Dateien** direkt mit Read/Glob/Grep.
@@ -109,9 +114,19 @@ Lies `project.json` für Pfade und Stack-Details.
 
 ### 5. Implementierung (parallel wo möglich)
 
-**Agent-Events werden automatisch vom SDK getrackt.** Ausgabe weiterhin anzeigen:
-- Vor Agent-Start: `▶ [{agent-type}] — {was der Agent macht}`
-- Nach Agent-Ende: `✓ [{agent-type}] abgeschlossen`
+**Für JEDEN Agent-Spawn — Events senden UND Ausgabe anzeigen:**
+
+Vor Agent-Start:
+```bash
+bash .claude/scripts/send-event.sh {N} {agent-type} agent_started
+```
+Ausgabe: `▶ [{agent-type}] — {was der Agent macht}`
+
+Nach Agent-Ende:
+```bash
+bash .claude/scripts/send-event.sh {N} {agent-type} completed
+```
+Ausgabe: `✓ [{agent-type}] abgeschlossen`
 
 Spawne Agents via Agent-Tool mit konkreten Instruktionen:
 
@@ -144,6 +159,11 @@ Ausgabe nach Abschluss: `✓ qa abgeschlossen`
 **NICHT STOPPEN.** SOFORT weiter zu Schritt 8.
 
 ### 8. Ship — `/ship` ausführen
+
+**Pipeline-Event senden** (Orchestrator abgeschlossen):
+```bash
+bash .claude/scripts/send-event.sh {N} orchestrator completed
+```
 
 **Führe den `/ship` Command aus.** Dieser macht autonom: Commit → Push → PR → Supabase "in_review".
 
