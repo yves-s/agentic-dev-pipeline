@@ -124,82 +124,72 @@ Lies die aktuelle `CLAUDE.md`. Falls dort noch TODO-Platzhalter stehen:
 
 ### 4. Dev Board verbinden (optional)
 
-Frage: **"Projekt mit dem Agentic Dev Board verbinden? (J/n)"**
+Parse die Argumente des Commands auf `--board`, `--key` und `--project` Flags.
 
-Falls nein: Überspringe diesen Schritt.
+#### Modus 1: Direct Connect (Flags vorhanden)
 
-Falls ja:
+Falls `--board` und `--key` übergeben wurden:
 
-#### 4a. Supabase MCP prüfen
+1. **Projekte abrufen** via Bash curl:
+   ```bash
+   curl -s -H "X-Pipeline-Key: {--key}" "{--board}/api/projects"
+   ```
+   - Bei 401: "Ungültiger API Key. Prüfe den Key im Board unter Settings."
+   - Bei Netzwerkfehler: "Board nicht erreichbar unter {--board}. URL prüfen."
 
-Supabase MCP muss verbunden sein. Falls nicht erreichbar: Erkläre wie man es aktiviert (Claude Code Settings → Integrations → Supabase → Connect), dann diesen Schritt überspringen.
+2. **Projekt zuordnen:**
+   - Falls `--project` übergeben: Finde das Projekt mit passender `id` in der API-Antwort (`data.projects[]`). Falls nicht gefunden: Fehler melden.
+   - Falls `--project` NICHT übergeben: Zeige die verfügbaren Projekte und frage den User:
+     ```
+     Verfügbare Projekte:
+       1. {name1}
+       2. {name2}
+       3. + Neues Projekt erstellen
+     ```
+   - Falls User ein neues Projekt erstellen will:
+     ```bash
+     curl -s -X POST -H "X-Pipeline-Key: {--key}" \
+       -H "Content-Type: application/json" \
+       -d '{"name": "{name}"}' \
+       "{--board}/api/projects"
+     ```
 
-#### 4b. Supabase-Projekt wählen
+3. **Workspace-Infos aus API-Antwort:** `workspace_id` und `workspace_name` kommen direkt aus der `GET /api/projects` Response (`data.workspace_id`, `data.workspace_name`).
 
-Rufe `mcp__claude_ai_Supabase__list_projects` auf.
-- Mehrere Projekte: Liste anzeigen, User wählen lassen
-- Nur eines: Automatisch nehmen
+#### Modus 2: Interaktiv (keine Flags)
 
-#### 4c. Workspace auswählen oder anlegen
+1. Frage: **"Projekt mit dem Agentic Dev Board verbinden? (J/n)"**
+2. Falls nein: Überspringe diesen Schritt.
+3. Falls ja: Frage nach Board URL und API Key im Gespräch:
+   - Board URL (z.B. `https://app.agentic-dev.xyz`)
+   - API Key (z.B. `adp_...`)
+4. Dann weiter wie Modus 1 (curl Aufrufe mit den eingegebenen Werten).
 
-```sql
-SELECT id, name, slug FROM public.workspaces ORDER BY created_at ASC;
-```
+#### Pipeline-Config in project.json schreiben
 
-**Falls Workspaces vorhanden:** Liste anzeigen + Option "Neuen Workspace anlegen"
-**Falls User einen bestehenden wählt:** Diese `workspace_id` verwenden.
-**Falls User neuen Workspace anlegt:**
-```sql
-INSERT INTO public.workspaces (name, slug)
-VALUES ('{name}', '{slug}')
-RETURNING id, name, slug;
-```
-Slug = name in lowercase, Leerzeichen → Bindestriche, nur a-z 0-9 -.
-
-#### 4d. Projekt auswählen oder anlegen
-
-```sql
-SELECT id, name FROM public.projects
-WHERE workspace_id = '{workspace_id}'
-ORDER BY name;
-```
-
-**Falls Projekte vorhanden:** Liste anzeigen + Option "Neues Projekt anlegen"
-**Falls User ein bestehendes wählt:** Diese `project_id` und `project_name` verwenden.
-**Falls User neues Projekt anlegt:**
-```sql
-INSERT INTO public.projects (workspace_id, name)
-VALUES ('{workspace_id}', '{name}')
-RETURNING id, name;
-```
-
-#### 4e. API Key anlegen (optional)
-
-Frage: **"API Key für Agent-Event-Hooks generieren? (empfohlen) (J/n)"**
-
-Falls ja:
-```sql
-INSERT INTO public.api_keys (workspace_id, name, key_hash, key_prefix, created_by)
-VALUES (
-  '{workspace_id}',
-  '{project_name} Pipeline',
-  encode(digest(gen_random_uuid()::text, 'sha256'), 'hex'),
-  'adb_',
-  (SELECT id FROM auth.users LIMIT 1)
-)
-RETURNING id, key_prefix;
-```
-
-Hinweis: Der vollständige API Key kann nur im Board-UI unter Settings → API Keys eingesehen werden.
-
-#### 4f. Pipeline-Config in project.json schreiben
+Schreibe ALLE 5 Felder in die `pipeline` Section von `project.json`:
 
 ```json
 "pipeline": {
-  "project_id": "{supabase_project_id}",
-  "project_name": "{projekt_name}",
-  "workspace_id": "{workspace_id}"
+  "project_id": "{Board Projekt-UUID aus API Response projects[].id}",
+  "project_name": "{Projektname aus API Response projects[].name}",
+  "workspace_id": "{workspace_id aus API Response}",
+  "api_url": "{Board URL}",
+  "api_key": "{API Key}"
 }
+```
+
+#### Sicherheitscheck
+
+Prüfe ob `project.json` von git getrackt wird:
+```bash
+git ls-files project.json
+```
+
+Falls die Datei getrackt wird, warne:
+```
+project.json wird von git getrackt und enthält jetzt einen API Key.
+Empfehlung: project.json zu .gitignore hinzufuegen.
 ```
 
 ### 5. Bestätigung
@@ -219,12 +209,12 @@ Falls Dev Board verbunden:
 ```
   Board-Projekt : {project_name}
   Workspace     : {workspace_name}
-  Supabase      : {project_id}
+  Board URL     : {api_url}
 ```
 
 ```
 Geänderte Dateien:
-  ✓ project.json  — Stack, Build, Paths
+  ✓ project.json  — Stack, Build, Paths, Pipeline
   ✓ CLAUDE.md     — Beschreibung, Konventionen, Architektur
 ```
 

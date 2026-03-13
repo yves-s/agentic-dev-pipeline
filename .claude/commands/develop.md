@@ -18,12 +18,13 @@ Lies `project.json` für Konventionen.
 - Tags/Titel enthalten "docs" → `docs/`
 - Alles andere → `feature/`
 
-**Pipeline (optional):** Falls `pipeline.project_id` in `project.json` gesetzt ist:
-- `pipeline.project_id` — Supabase Project ID des Agentic Dev Boards
-- `pipeline.project_name` — Projektname für Ticket-Filterung
-- `pipeline.workspace_id` — Workspace ID für Multi-Tenancy-Scoping
+**Pipeline (optional):** Lies `project.json` und bestimme den Pipeline-Modus:
 
-Falls `pipeline.project_id` **leer oder nicht vorhanden** ist: Alle Supabase-Schritte in diesem Command überspringen. Ticket-Infos werden dann per `$ARGUMENTS` übergeben.
+1. **Board API** (bevorzugt): Falls `pipeline.api_url` UND `pipeline.api_key` gesetzt sind → Board REST API verwenden
+2. **Legacy Supabase MCP**: Falls nur `pipeline.project_id` gesetzt ist (ohne `api_url`/`api_key`) → `execute_sql` verwenden, aber Warnung ausgeben: "Kein Board API konfiguriert. Nutze Legacy Supabase MCP. Fuehre /setup-pipeline aus um zu upgraden."
+3. **Standalone**: Falls weder Board API noch `pipeline.project_id` konfiguriert → Alle Pipeline-Schritte überspringen. Ticket-Infos werden per `$ARGUMENTS` übergeben.
+
+**project_id Format-Check:** Falls `pipeline.project_id` gesetzt ist und KEINE Bindestriche enthält (kurzer alphanumerischer String wie `wsmnutkobalfrceavpxs`), ist es eine alte Supabase-Projekt-ID. Warnung ausgeben: "pipeline.project_id sieht nach einer alten Supabase-ID aus. Fuehre /setup-pipeline aus um auf Board-UUID zu migrieren."
 
 ## WICHTIGSTE REGEL
 
@@ -33,23 +34,40 @@ Falls `pipeline.project_id` **leer oder nicht vorhanden** ist: Alle Supabase-Sch
 
 ### 1. Ticket finden
 
-> **Ohne Supabase:** Nutze `$ARGUMENTS` direkt als Ticket-Beschreibung. Springe zu Schritt 3 (nur Feature-Branch).
+> **Standalone-Modus (kein Pipeline):** Nutze `$ARGUMENTS` direkt als Ticket-Beschreibung. Springe zu Schritt 3 (nur Feature-Branch).
 
 Falls `$ARGUMENTS` übergeben: Nutze als Ticket-ID oder Suchbegriff.
 Falls kein Argument: Suche nach dem nächsten Ticket mit Status "ready_to_develop".
 
+#### Board API (bevorzugt)
+
 **Bei übergebener Ticket-ID (z.B. `T-162`):**
 1. Nummer extrahieren: `T-162` → `162`
-2. Via `mcp__claude_ai_Supabase__execute_sql`:
-   ```sql
-   SELECT * FROM public.tickets
-   WHERE number = 162
-     AND workspace_id = '{pipeline.workspace_id}';
+2. Via Bash curl:
+   ```bash
+   curl -s -H "X-Pipeline-Key: {pipeline.api_key}" \
+     "{pipeline.api_url}/api/tickets/162"
    ```
-   Mit `project_id` aus `pipeline.project_id` in project.json.
 
 **Bei fehlendem Argument (Suche nach "ready_to_develop"):**
-Lies `pipeline.project_name` und `pipeline.workspace_id` aus `project.json` und setze sie direkt in die Query ein:
+```bash
+curl -s -H "X-Pipeline-Key: {pipeline.api_key}" \
+  "{pipeline.api_url}/api/tickets?status=ready_to_develop&project={pipeline.project_id}"
+```
+Nimm das erste Ticket aus der Response (`data[0]` oder `data.tickets[0]`).
+
+#### Legacy Supabase MCP (Fallback)
+
+Falls nur `pipeline.project_id` gesetzt (ohne `api_url`/`api_key`), nutze `mcp__claude_ai_Supabase__execute_sql`:
+
+**Bei übergebener Ticket-ID:**
+```sql
+SELECT * FROM public.tickets
+WHERE number = 162
+  AND workspace_id = '{pipeline.workspace_id}';
+```
+
+**Bei fehlendem Argument:**
 ```sql
 SELECT number, title, body, priority, tags
 FROM public.tickets
@@ -64,7 +82,6 @@ ORDER BY
   created_at ASC
 LIMIT 1;
 ```
-Via `mcp__claude_ai_Supabase__execute_sql` mit `project_id` aus `pipeline.project_id` in project.json.
 
 **Kein Ticket gefunden:** User informieren und stoppen.
 
@@ -76,8 +93,18 @@ Zeige kurz an: `▶ Ticket T-{N}: {title}` — dann direkt weiter, NICHT auf Bes
 
 **Falls Pipeline konfiguriert — PFLICHT, NICHT ÜBERSPRINGEN. Alle Aktionen ausführen:**
 
-**3a) Status updaten + Projekt zuordnen** via `mcp__claude_ai_Supabase__execute_sql`.
-Die Werte `{pipeline.project_name}` und `{pipeline.workspace_id}` stehen in `project.json` → Lies sie dort aus und setze sie direkt ein:
+**3a) Status updaten + Projekt zuordnen:**
+
+**Board API (bevorzugt):** Via Bash curl:
+```bash
+curl -s -X PATCH -H "X-Pipeline-Key: {pipeline.api_key}" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "in_progress", "branch": "{branch}", "project_id": "{pipeline.project_id}"}' \
+  "{pipeline.api_url}/api/tickets/{N}"
+```
+Hinweis: `branch` wird mitgesendet damit das Board anzeigt welcher Branch aktiv ist. `project_id` ordnet das Ticket dem Projekt zu falls noch nicht geschehen.
+
+**Legacy Supabase MCP (Fallback):** Via `mcp__claude_ai_Supabase__execute_sql`:
 ```sql
 UPDATE public.tickets
 SET status = 'in_progress',
@@ -91,6 +118,7 @@ WHERE number = {N}
   AND workspace_id = '{pipeline.workspace_id}'
 RETURNING number, title, status;
 ```
+
 Warte auf die Bestätigung, dass das Update erfolgreich war, bevor du weitermachst.
 
 **3b) Feature-Branch erstellen:**

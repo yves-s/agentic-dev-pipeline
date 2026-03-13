@@ -19,7 +19,13 @@ Commit → Push → PR. Merged wird erst nach Freigabe via `/merge`.
 
 ## Konfiguration
 
-Lies `project.json`. Pipeline-Schritte NUR wenn `pipeline.project_id` gesetzt ist.
+Lies `project.json`. Bestimme den Pipeline-Modus:
+
+1. **Board API** (bevorzugt): Falls `pipeline.api_url` UND `pipeline.api_key` gesetzt → Board REST API verwenden
+2. **Legacy Supabase MCP**: Falls nur `pipeline.project_id` gesetzt (ohne `api_url`/`api_key`) → `execute_sql` verwenden, Warnung ausgeben: "Kein Board API konfiguriert. Nutze Legacy Supabase MCP. Fuehre /setup-pipeline aus um zu upgraden."
+3. **Standalone**: Falls weder Board API noch `pipeline.project_id` konfiguriert → Pipeline-Schritte überspringen
+
+**project_id Format-Check:** Falls `pipeline.project_id` gesetzt ist und KEINE Bindestriche enthält (kurzer alphanumerischer String wie `wsmnutkobalfrceavpxs`), ist es eine alte Supabase-Projekt-ID. Warnung ausgeben: "pipeline.project_id sieht nach einer alten Supabase-ID aus. Fuehre /setup-pipeline aus um auf Board-UUID zu migrieren."
 
 ## Trigger
 
@@ -66,7 +72,15 @@ SOFORT WEITER ZU SCHRITT 4.
 
 ### 4. Pipeline-Status auf "in_review" (nur wenn konfiguriert)
 
-Via `mcp__claude_ai_Supabase__execute_sql` mit `pipeline.project_id`:
+**Board API (bevorzugt):** Via Bash curl:
+```bash
+curl -s -X PATCH -H "X-Pipeline-Key: {pipeline.api_key}" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "in_review"}' \
+  "{pipeline.api_url}/api/tickets/{N}"
+```
+
+**Legacy Supabase MCP (Fallback):** Via `mcp__claude_ai_Supabase__execute_sql`:
 ```sql
 UPDATE public.tickets
 SET status = 'in_review'
