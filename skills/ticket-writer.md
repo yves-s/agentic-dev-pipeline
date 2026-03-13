@@ -292,6 +292,8 @@ RETURNING number, title, status;
 2. **`body` ist PFLICHT.** Vollständiges Ticket-Markdown (Problem, Desired Behavior, ACs, Out of Scope). NIEMALS leer oder NULL.
 3. **Bestätigung MUSS `T-` Prefix verwenden:** `Ticket T-{number} erstellt: {title}` — das `number` kommt aus der API Response bzw. `RETURNING`. **NIEMALS `#` verwenden.** Falsch: `#272`. Richtig: `T-272`.
 
+> ⚠️ STOP: Bevor du die Bestätigung schreibst — prüfe nochmals: Verwendest du `T-{number}` (korrekt) oder `#{number}` (FALSCH)? Das `#`-Prefix ist **verboten**.
+
 ### Kein Pipeline — User fragen
 
 Only if there is no `project.json` or no pipeline config at all, ask the user where to deliver: Board (needs API config), Notion, or Markdown only.
@@ -326,6 +328,7 @@ Only if there is no `project.json` or no pipeline config at all, ask the user wh
     - If only `pipeline.project_id` is set (no `api_url`) → use legacy Supabase MCP with warning.
     - Ensure `body` contains the full ticket Markdown and `project_id` is always set.
     - If no `project.json` or no pipeline config → ask the user where to deliver.
+    - **After delivery:** confirm with `Ticket T-{number} erstellt: {title}` — NIEMALS `#{number}` verwenden.
 
 ## Full Example
 

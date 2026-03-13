@@ -78,6 +78,19 @@ get_framework_version() {
 
 FRAMEWORK_VERSION=$(get_framework_version)
 
+# --- Helper: ensure a pattern is in .gitignore ---
+ensure_gitignore() {
+  local pattern="$1"
+  local comment="$2"
+  local gitignore="$PROJECT_DIR/.gitignore"
+  if [ -f "$gitignore" ] && grep -qxF "$pattern" "$gitignore"; then
+    return 0
+  fi
+  echo "" >> "$gitignore"
+  echo "# $comment" >> "$gitignore"
+  echo "$pattern" >> "$gitignore"
+}
+
 # --- Self-install guard ---
 # The framework repo itself uses symlinks (.claude/commands → ../commands etc.)
 # Running setup.sh on itself would try to copy files onto themselves.
@@ -404,6 +417,14 @@ if [ "$MODE" = "update" ]; then
     fi
   fi
 
+  echo "Checking .gitignore..."
+  if [ -f "$PROJECT_DIR/.gitignore" ]; then
+    ensure_gitignore "project.json" "Pipeline config (contains API keys — do not commit)"
+    echo "  ✓ project.json in .gitignore"
+  else
+    echo "  ⚠ No .gitignore found — add 'project.json' manually to avoid committing API keys"
+  fi
+
   echo ""
   echo "================================================"
   echo "  Update complete → $FRAMEWORK_VERSION"
@@ -539,6 +560,15 @@ CONFIG_EOF
   echo "  ✓ project.json"
 else
   echo "  ~ project.json (skipped)"
+fi
+
+# --- Ensure project.json is gitignored (contains API keys) ---
+echo "Checking .gitignore..."
+if [ -f "$PROJECT_DIR/.gitignore" ]; then
+  ensure_gitignore "project.json" "Pipeline config (contains API keys — do not commit)"
+  echo "  ✓ project.json in .gitignore"
+else
+  echo "  ⚠ No .gitignore found — add 'project.json' manually to avoid committing API keys"
 fi
 
 # --- Generate settings.json ---
