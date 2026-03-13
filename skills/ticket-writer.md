@@ -1,7 +1,7 @@
 ---
 name: ticket-writer
 description: Write high-quality product tickets — user stories, bugs, improvements, spikes, and technical debt items. Use this skill whenever the user wants to create, refine, split, or review a ticket. Triggers on phrases like "write a ticket", "create a story", "document this bug", "formulate a ticket for...", "this ticket is too big", or when the user shares rough requirements or feature ideas that need structuring.
-allowed-tools: Read, Grep, mcp__claude_ai_Supabase__execute_sql, mcp__claude_ai_Notion__notion-create-pages, mcp__claude_ai_Notion__notion-search, mcp__claude_ai_Notion__notion-fetch
+allowed-tools: Read, Grep, Bash, mcp__claude_ai_Supabase__execute_sql, mcp__claude_ai_Notion__notion-create-pages, mcp__claude_ai_Notion__notion-search, mcp__claude_ai_Notion__notion-fetch
 ---
 
 # Ticket Writer
@@ -237,22 +237,48 @@ When in doubt: if the ticket has no clear urgency signal, default to `medium`.
 
 ## Output and Delivery
 
-### Pipeline (Supabase) — Primary & Automatic
+### Pipeline-Modus bestimmen
 
-**CRITICAL:** When `project.json` has `pipeline.project_id` set, insert the ticket into Supabase IMMEDIATELY after writing. Do NOT ask the user for confirmation or where to deliver. Just do it.
+Read `project.json` and determine the pipeline mode:
 
-Read `project.json` to get `pipeline.project_id`, `pipeline.workspace_id`, and `pipeline.project_name`. Then insert via `mcp__claude_ai_Supabase__execute_sql`:
+1. **Board API** (bevorzugt): Falls `pipeline.api_url` UND `pipeline.api_key` gesetzt → Board REST API verwenden
+2. **Legacy Supabase MCP**: Falls nur `pipeline.project_id` gesetzt (ohne `api_url`/`api_key`) → `execute_sql` verwenden, Warnung ausgeben: "Kein Board API konfiguriert. Nutze Legacy Supabase MCP. Fuehre /setup-pipeline aus um zu upgraden."
+3. **Kein Pipeline**: Falls weder Board API noch `pipeline.project_id` konfiguriert → User fragen wo das Ticket hin soll
+
+### Board API (bevorzugt) — Primary & Automatic
+
+**CRITICAL:** When `project.json` has `pipeline.api_url` and `pipeline.api_key` set, insert the ticket via Board API IMMEDIATELY after writing. Do NOT ask the user for confirmation or where to deliver. Just do it.
+
+Via Bash curl:
+```bash
+curl -s -X POST -H "X-Pipeline-Key: {pipeline.api_key}" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "title": "{title}",
+    "body": "{body_markdown}",
+    "priority": "{priority}",
+    "tags": ["{tag1}", "{tag2}"],
+    "status": "backlog",
+    "project_id": "{pipeline.project_id}"
+  }' \
+  "{pipeline.api_url}/api/tickets"
+```
+
+Use `backlog` as default status. Use `ready_to_develop` only if ACs are complete and unambiguous.
+
+### Legacy Supabase MCP (Fallback)
+
+Falls nur `pipeline.project_id` gesetzt (ohne `api_url`/`api_key`), nutze `mcp__claude_ai_Supabase__execute_sql`:
 
 ```sql
 INSERT INTO public.tickets (title, body, priority, tags, status, workspace_id, project_id)
 VALUES (
   '{title}',
   '{body_markdown}',
-  '{priority}',         -- 'high' | 'medium' | 'low'
+  '{priority}',
   ARRAY['{tag1}', '{tag2}'],
-  'backlog',            -- default; use 'ready_to_develop' only if ACs are complete and unambiguous
+  'backlog',
   '{pipeline.workspace_id}',
-  -- ⚠ NIEMALS weglassen! Immer project_id per Subquery setzen:
   (SELECT id FROM public.projects
    WHERE name = '{pipeline.project_name}'
      AND workspace_id = '{pipeline.workspace_id}')
@@ -260,17 +286,15 @@ VALUES (
 RETURNING number, title, status;
 ```
 
-### ⚠ HARD RULES — Verstoß = fehlerhaftes Ticket
+### HARD RULES
 
-1. **`project_id` ist PFLICHT.** Immer die Subquery `(SELECT id FROM public.projects WHERE name = ...)` verwenden. NIEMALS weglassen, NIEMALS NULL setzen.
-2. **`workspace_id` ist PFLICHT.** Wert aus `pipeline.workspace_id` in `project.json`.
-3. **`body` ist PFLICHT.** Vollständiges Ticket-Markdown (Problem, Desired Behavior, ACs, Out of Scope). NIEMALS leer oder NULL.
-4. **Supabase-Projekt:** `pipeline.project_id` aus `project.json` als Supabase project_id für den MCP Tool Call verwenden.
-5. **Bestätigung MUSS `T-` Prefix verwenden:** `✓ Ticket T-{number} erstellt: {title}` — das `number` kommt aus `RETURNING`. **NIEMALS `#` verwenden.** Falsch: `#272`. Richtig: `T-272`.
+1. **`project_id` ist PFLICHT.** Bei Board API: `pipeline.project_id` aus `project.json`. Bei Legacy: Subquery verwenden. NIEMALS weglassen, NIEMALS NULL.
+2. **`body` ist PFLICHT.** Vollständiges Ticket-Markdown (Problem, Desired Behavior, ACs, Out of Scope). NIEMALS leer oder NULL.
+3. **Bestätigung MUSS `T-` Prefix verwenden:** `Ticket T-{number} erstellt: {title}` — das `number` kommt aus der API Response bzw. `RETURNING`. **NIEMALS `#` verwenden.** Falsch: `#272`. Richtig: `T-272`.
 
-### Fallback — Only when no pipeline.project_id
+### Kein Pipeline — User fragen
 
-Only if there is no `project.json` or no `pipeline.project_id`, ask the user where to deliver: Pipeline (Supabase), Notion, or Markdown only.
+Only if there is no `project.json` or no pipeline config at all, ask the user where to deliver: Board (needs API config), Notion, or Markdown only.
 
 **Notion:** Use `mcp__claude_ai_Notion__notion-search` to find the target database, then `mcp__claude_ai_Notion__notion-create-pages` to create the ticket as a page.
 
@@ -298,9 +322,10 @@ Only if there is no `project.json` or no `pipeline.project_id`, ask the user whe
 9. Choose a clear, action-oriented title last (titles are easier to write after the body)
 10. Set properties: status, priority, type
 11. **Deliver the ticket** (see Output and Delivery section):
-    - Read `project.json`. If `pipeline.project_id` is set → insert directly into Supabase. No confirmation needed — just insert.
-    - Ensure `body` contains the full ticket Markdown and `project_id` uses the subquery.
-    - If no `project.json` or no `pipeline.project_id` → ask the user where to deliver.
+    - Read `project.json`. If `pipeline.api_url` and `pipeline.api_key` are set → insert via Board API. No confirmation needed — just insert.
+    - If only `pipeline.project_id` is set (no `api_url`) → use legacy Supabase MCP with warning.
+    - Ensure `body` contains the full ticket Markdown and `project_id` is always set.
+    - If no `project.json` or no pipeline config → ask the user where to deliver.
 
 ## Full Example
 

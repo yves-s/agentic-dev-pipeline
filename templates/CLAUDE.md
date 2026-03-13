@@ -38,7 +38,7 @@ Dieses Repo nutzt ein Multi-Agent-System. Ob lokal oder auf dem Server:
 
 ## Ticket-Workflow (Agentic Dev Board)
 
-> Nur aktiv wenn `pipeline.project_id` in `project.json` gesetzt ist. Ohne Pipeline-Config werden diese Schritte übersprungen.
+> Nur aktiv wenn `pipeline.api_url` und `pipeline.api_key` in `project.json` gesetzt sind. Ohne Pipeline-Config werden diese Schritte übersprungen.
 
 Falls Pipeline konfiguriert ist, sind Status-Updates **PFLICHT**:
 
@@ -49,14 +49,15 @@ Falls Pipeline konfiguriert ist, sind Status-Updates **PFLICHT**:
 | `/ship` — PR erstellen | **`in_review`** | Nach PR-Erstellung |
 | `/merge` — PR mergen | **`done`** | Nach erfolgreichem Merge |
 
-Status-Updates via `mcp__claude_ai_Supabase__execute_sql` mit `pipeline.project_id`:
-```sql
-UPDATE public.tickets
-SET status = '{status}'
-WHERE number = {N}
-  AND workspace_id = '{pipeline.workspace_id}'
-RETURNING number, title, status;
+Status-Updates via Board API (curl):
+```bash
+curl -s -X PATCH -H "X-Pipeline-Key: {pipeline.api_key}" \
+  -H "Content-Type: application/json" \
+  -d '{"status": "{status}"}' \
+  "{pipeline.api_url}/api/tickets/{N}"
 ```
+
+**Backward Compatibility:** Falls nur `pipeline.project_id` gesetzt ist (ohne `api_url`/`api_key`), wird `mcp__claude_ai_Supabase__execute_sql` als Fallback verwendet. Fuehre `/setup-pipeline` aus um auf Board API zu upgraden.
 
 **Überspringe KEINEN dieser Schritte.** Falls ein Update fehlschlägt, versuche es erneut oder informiere den User.
 
