@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Copy, Check, RefreshCw, AlertTriangle, ExternalLink } from "lucide-react";
+import { Copy, Check, RefreshCw, AlertTriangle, ExternalLink, Loader2 } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -70,15 +70,17 @@ export function ProjectSetupDialog({
     if (plaintextKey) setCurrentPlaintextKey(plaintextKey);
   }, [plaintextKey]);
 
+  const isKeyLoading = !currentPlaintextKey && !apiKey;
+
   const displayKey = currentPlaintextKey
     ? currentPlaintextKey
     : apiKey
       ? `${apiKey.key_prefix}...****`
-      : "Generating...";
+      : "";
 
   const cliCommand = `/setup-pipeline \\
   --board ${boardUrl} \\
-  --key ${displayKey} \\
+  --key ${displayKey || "<loading...>"} \\
   --project ${project.id}`;
 
   const jsonConfig = JSON.stringify(
@@ -172,7 +174,7 @@ export function ProjectSetupDialog({
                   <div className="space-y-1">
                     <p className="text-sm font-medium">2. Install pipeline in your project</p>
                     <div className="relative">
-                      <pre className="text-xs bg-background rounded p-3 overflow-x-auto">
+                      <pre className="text-xs bg-background rounded p-3 whitespace-pre-wrap break-all pr-9">
                         {INSTALL_COMMAND}
                       </pre>
                       <CopyButton target="install" text={INSTALL_COMMAND} />
@@ -201,12 +203,19 @@ export function ProjectSetupDialog({
               <p className="text-sm font-medium">
                 Run this in your project terminal (inside Claude Code):
               </p>
-              <div className="relative">
-                <pre className="text-xs bg-background rounded p-3 overflow-x-auto">
-                  {cliCommand}
-                </pre>
-                <CopyButton target="cli" text={cliCommand} />
-              </div>
+              {isKeyLoading ? (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground bg-background rounded p-3">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  Generating API key...
+                </div>
+              ) : (
+                <div className="relative">
+                  <pre className="text-xs bg-background rounded p-3 whitespace-pre-wrap break-all pr-9">
+                    {cliCommand}
+                  </pre>
+                  <CopyButton target="cli" text={cliCommand} />
+                </div>
+              )}
             </div>
 
             {/* Manual JSON (collapsible) */}
@@ -216,7 +225,7 @@ export function ProjectSetupDialog({
               </CollapsibleTrigger>
               <CollapsibleContent className="mt-2">
                 <div className="relative">
-                  <pre className="text-xs bg-muted rounded p-3 overflow-x-auto">
+                  <pre className="text-xs bg-muted rounded p-3 whitespace-pre-wrap break-all pr-9">
                     {jsonConfig}
                   </pre>
                   <CopyButton target="json" text={jsonConfig} />

@@ -600,14 +600,14 @@ export function Board({
       />
       {/* Empty state overlay -- shown when no projects exist */}
       {localProjects.length === 0 && (
-        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/80 backdrop-blur-sm">
-          <div className="rounded-xl border bg-card p-8 shadow-lg text-center max-w-md">
-            <h2 className="text-xl font-semibold mb-2">Welcome to your workspace!</h2>
-            <p className="text-muted-foreground mb-6">
-              Projects group your tickets and connect to your codebase.
+        <div className="absolute inset-0 z-30 flex items-center justify-center bg-background/60 backdrop-blur-md">
+          <div className="rounded-2xl border bg-card p-10 shadow-2xl text-center max-w-lg">
+            <h2 className="text-2xl font-bold mb-3">Welcome to your workspace!</h2>
+            <p className="text-muted-foreground mb-8 text-base leading-relaxed">
+              Create a project to start organizing your tickets and connect your codebase.
             </p>
-            <Button onClick={() => setCreateProjectOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
+            <Button size="lg" onClick={() => setCreateProjectOpen(true)}>
+              <Plus className="h-5 w-5 mr-2" />
               Create your first project
             </Button>
           </div>
