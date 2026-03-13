@@ -171,6 +171,10 @@ export function BoardGroupRow({
     );
   }
 
+  const hasActiveAgent = isAgentActive
+    ? group.tickets.some((t) => isAgentActive(t.id))
+    : false;
+
   return (
     <div className="mb-3">
       {/* Group header — spans full width */}
@@ -193,6 +197,12 @@ export function BoardGroupRow({
         <span className="text-xs text-muted-foreground">
           {group.tickets.length}
         </span>
+        {hasActiveAgent && (
+          <span className="relative flex h-2 w-2 shrink-0">
+            <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+            <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
+          </span>
+        )}
       </button>
 
       {/* Columns row */}

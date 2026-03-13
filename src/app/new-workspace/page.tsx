@@ -134,14 +134,14 @@ export default function NewWorkspacePage() {
   if (apiKey) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-muted/30 px-4">
-        <Card className="w-full max-w-sm">
+        <Card className="w-full max-w-md">
           <CardHeader className="text-center">
             <CardTitle className="text-2xl">Workspace created</CardTitle>
             <CardDescription>
               Your pipeline API key was auto-generated. Copy it now — it won&apos;t be shown again.
             </CardDescription>
           </CardHeader>
-          <CardContent className="flex flex-col gap-4">
+          <CardContent className="flex flex-col gap-5">
             <div className="flex flex-col gap-1.5">
               <Label>API Key</Label>
               <div className="flex items-center gap-2">
@@ -157,8 +157,20 @@ export default function NewWorkspacePage() {
                   {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
                 </Button>
               </div>
-              <p className="text-xs text-muted-foreground">
-                Use this key as <code className="text-[11px]">Authorization: Bearer {apiKey.plaintext.slice(0, 12)}…</code>
+            </div>
+            <div className="rounded-lg border bg-muted/30 px-4 py-3 text-xs text-muted-foreground flex flex-col gap-2">
+              <p className="font-medium text-foreground text-sm">What is this key for?</p>
+              <p>
+                This key connects external tools — like Claude Code, CI/CD pipelines, or custom scripts — to your workspace. They can create, read, and update tickets via the Pipeline API.
+              </p>
+              <p>
+                Add it to your <code className="rounded bg-muted px-1 py-0.5 text-[11px]">project.json</code> or pass it as a header:
+              </p>
+              <code className="rounded bg-muted px-2 py-1.5 text-[11px] block">
+                Authorization: Bearer {apiKey.plaintext.slice(0, 12)}…
+              </code>
+              <p>
+                You can manage keys anytime in <span className="font-medium text-foreground">Settings → API Keys</span>.
               </p>
             </div>
             <Button
