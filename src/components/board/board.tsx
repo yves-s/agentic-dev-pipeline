@@ -139,6 +139,15 @@ export function Board({
   );
   const [loadingMore, setLoadingMore] = useState<Record<string, boolean>>({});
 
+  // Sync local state with server-rendered props on client-side navigation
+  useEffect(() => {
+    setTickets(initialTickets);
+    setColumnCounts(initialColumnCounts);
+    setColumnPages(
+      Object.fromEntries(BOARD_COLUMNS.map((col) => [col.status, 1]))
+    );
+  }, [initialTickets, initialColumnCounts]);
+
   const handleCountChange = useCallback(
     (changes: { status: string; delta: number }[]) => {
       setColumnCounts((prev) => {
