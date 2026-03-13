@@ -61,6 +61,18 @@ function autoResize(el: HTMLTextAreaElement | null) {
   el.style.height = el.scrollHeight + "px";
 }
 
+function formatRelativeTime(dateStr: string): string {
+  const now = new Date();
+  const date = new Date(dateStr);
+  const diffMs = now.getTime() - date.getTime();
+  const diffMin = Math.floor(diffMs / 60000);
+  if (diffMin < 1) return "gerade eben";
+  if (diffMin < 60) return `vor ${diffMin} Min.`;
+  const diffH = Math.floor(diffMin / 60);
+  if (diffH < 24) return `vor ${diffH} Std.`;
+  return date.toLocaleDateString("de-DE", { day: "2-digit", month: "2-digit", year: "2-digit" });
+}
+
 function EventIcon({ eventType }: { eventType: string }) {
   switch (eventType) {
     case "agent_started":
@@ -138,6 +150,7 @@ export function TicketDetailSheet({
   }, [open, workspace.id]);
 
   const [events, setEvents] = useState<{ id: string; event_type: string; message: string; agent_type: string; created_at: string }[]>([]);
+  const [logsCollapsed, setLogsCollapsed] = useState(true);
 
   useEffect(() => {
     if (!open || !current) return;
@@ -614,43 +627,63 @@ export function TicketDetailSheet({
             <div className="h-px bg-border mx-6 my-2" />
             <div className="px-8 py-3">
               <div className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground/60 mb-3">
-                Activity
+                Agent Logs
               </div>
               {events.length === 0 ? (
-                <p className="text-sm text-muted-foreground/40">No activity yet</p>
+                <p className="text-sm text-muted-foreground/40">Keine Agent-Logs vorhanden</p>
               ) : (
-                <div className="space-y-2">
-                  {events.map((event) => (
-                    <div
-                      key={event.id}
-                      className="flex items-start gap-2.5 text-sm"
-                    >
-                      <EventIcon eventType={event.event_type} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-foreground">
-                          {event.message || (
-                            <span className="text-muted-foreground">
-                              {event.agent_type} — {event.event_type.replace(/_/g, " ")}
-                            </span>
-                          )}
-                        </p>
-                        <div className="flex items-center gap-2 mt-0.5">
-                          <span className="text-[10px] text-muted-foreground/60">
-                            {new Date(event.created_at).toLocaleString("de-DE", {
-                              day: "2-digit",
-                              month: "2-digit",
-                              hour: "2-digit",
-                              minute: "2-digit",
-                            })}
-                          </span>
-                          <span className="text-[10px] text-muted-foreground/40">
-                            {event.agent_type}
-                          </span>
+                <>
+                  {(() => {
+                    const LOGS_LIMIT = 10;
+                    const visibleEvents = logsCollapsed && events.length > LOGS_LIMIT ? events.slice(-LOGS_LIMIT) : events;
+                    return (
+                      <>
+                        <div className="space-y-2">
+                          {visibleEvents.map((event) => (
+                            <div
+                              key={event.id}
+                              className="flex items-start gap-2.5 text-sm"
+                            >
+                              <EventIcon eventType={event.event_type} />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-mono text-xs text-foreground">
+                                  {event.message || (
+                                    <span className="text-muted-foreground">
+                                      {event.agent_type} — {event.event_type.replace(/_/g, " ")}
+                                    </span>
+                                  )}
+                                </p>
+                                <div className="flex items-center gap-2 mt-0.5">
+                                  <span
+                                    className="text-[10px] text-muted-foreground/60 cursor-default"
+                                    title={new Date(event.created_at).toLocaleString("de-DE", {
+                                      day: "2-digit",
+                                      month: "2-digit",
+                                      year: "numeric",
+                                      hour: "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  >
+                                    {formatRelativeTime(event.created_at)}
+                                  </span>
+                                  <span className="text-[10px] text-muted-foreground/40">{event.agent_type}</span>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                        {events.length > LOGS_LIMIT && (
+                          <button
+                            onClick={() => setLogsCollapsed(!logsCollapsed)}
+                            className="mt-2 text-[11px] text-muted-foreground/60 hover:text-foreground transition-colors"
+                          >
+                            {logsCollapsed ? `${events.length - LOGS_LIMIT} ältere Einträge anzeigen` : "Weniger anzeigen"}
+                          </button>
+                        )}
+                      </>
+                    );
+                  })()}
+                </>
               )}
             </div>
           </>
