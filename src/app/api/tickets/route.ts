@@ -1,6 +1,7 @@
 import { validatePipelineKey } from "@/lib/api/pipeline-key-auth";
 import { createServiceClient } from "@/lib/supabase/service";
-import { success, error, unauthorized } from "@/lib/api/error-response";
+import { success, error, unauthorized, validationError } from "@/lib/api/error-response";
+import { createTicketSchema } from "@/lib/validations/ticket";
 
 export async function GET(request: Request) {
   const auth = await validatePipelineKey(request);
@@ -47,4 +48,24 @@ export async function GET(request: Request) {
   if (dbError) return error("DB_ERROR", dbError.message, 500);
 
   return success({ tickets });
+}
+
+export async function POST(request: Request) {
+  const auth = await validatePipelineKey(request);
+  if (auth.error) return unauthorized(auth.error);
+
+  const body = await request.json();
+  const parsed = createTicketSchema.safeParse(body);
+  if (!parsed.success) return validationError(parsed.error);
+
+  const supabase = createServiceClient();
+  const { data: ticket, error: dbError } = await supabase
+    .from("tickets")
+    .insert({ ...parsed.data, workspace_id: auth.workspace_id })
+    .select("*, project:projects(*)")
+    .single();
+
+  if (dbError) return error("DB_ERROR", dbError.message, 500);
+
+  return success(ticket, 201);
 }
