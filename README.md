@@ -1,34 +1,36 @@
 # Just Ship
 
-A portable multi-agent framework for autonomous software development with [Claude Code](https://docs.anthropic.com/en/docs/claude-code).
+**From ticket to merge. Autonomously.**
 
-Install it into any project. Write tickets. Watch them turn into pull requests — autonomously.
+A portable multi-agent framework for autonomous software development. Ship complex projects from ticket to merge — fully autonomous. Install it into any project, write tickets, and watch them turn into pull requests. Built on [Claude Code](https://docs.anthropic.com/en/docs/claude-code) and the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk).
 
 ---
 
 ## How It Works
 
 ```
-You write a ticket
-    │
-    ▼
-Orchestrator (Opus) reads affected files, plans the work
-    │
-    ├── data-engineer (Haiku)  → migrations, RLS, types
-    ├── backend (Sonnet)       → API, hooks, business logic     } parallel
-    ├── frontend (Sonnet)      → UI components, pages           }
-    │
-    ▼
-Build check → QA review → Commit → Push → PR
-    │
-    ▼
-You review the PR → "passt" → squash merge → done
+Ticket (Board or CLI)
+    |
+    v
+Orchestrator (Opus)
+    |-- reads affected files
+    |-- plans the work
+    |-- delegates to sub-agents
+    |
+    |-- data-engineer (Haiku)  --> migrations, RLS, types
+    |-- backend (Sonnet)       --> API, hooks, business logic      } parallel
+    |-- frontend (Sonnet)      --> UI components, pages            }
+    |
+    v
+Build check --> QA review --> Commit --> Push --> PR
+    |
+    v
+You review the PR --> "passt" --> squash merge --> done
 ```
 
-The framework provides **7 specialized agents**, **7 slash commands**, a **TypeScript pipeline runner** (built on the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk)), and **real-time event streaming** to a visual Dev Board.
+Two modes of operation:
 
-It works in two modes:
-- **Interactive** — You drive the workflow with slash commands in Claude Code
+- **Interactive** — Drive the workflow with slash commands in Claude Code
 - **Autonomous** — A VPS worker polls a Supabase ticket queue and runs the pipeline 24/7
 
 ---
@@ -43,9 +45,9 @@ git clone https://github.com/yves-s/just-ship.git ~/.just-ship
 cd /path/to/your-project
 ~/.just-ship/setup.sh
 
-# 3. Connect to the Just Ship Board
+# 3. Connect to the Just Ship Board (optional)
 #    Create a workspace + project at https://board.just-ship.io
-#    Copy the connect command from the project setup dialog, then run it in Claude Code:
+#    Copy the connect command from the project setup dialog:
 claude
 > /setup-pipeline --board https://board.just-ship.io --key adp_... --project <uuid>
 
@@ -62,11 +64,11 @@ claude
 
 | Command | What it does | Autonomous |
 |---------|-------------|------------|
-| `/ticket` | Write a structured ticket (bug, feature, improvement, spike) | No — may ask for input |
+| `/ticket` | Write a structured ticket (bug, feature, improvement, spike) | No |
 | `/develop` | Pick next ticket, implement end-to-end, create PR | Yes |
 | `/ship` | Commit + push + PR + board status "in_review" | Yes |
 | `/merge` | Squash merge + delete branch + board status "done" | Yes |
-| `/status` | Show current ticket, branch, and changes | — |
+| `/status` | Show current ticket, branch, and changes | -- |
 | `/setup-pipeline` | Auto-detect stack, configure project, connect Dev Board | Interactive |
 | `/update-pipeline` | Sync project files after framework update | Interactive |
 
@@ -78,7 +80,7 @@ claude
 
 | Agent | Model | Role |
 |-------|-------|------|
-| **Orchestrator** | Opus | Plans, delegates, ships — drives the entire flow |
+| **Orchestrator** | Opus | Plans, delegates, ships -- drives the entire flow |
 | **Backend** | Sonnet | API endpoints, shared hooks, business logic |
 | **Frontend** | Sonnet | UI components and pages (design-aware) |
 | **Data Engineer** | Haiku | DB migrations, RLS policies, TypeScript types |
@@ -90,11 +92,42 @@ Sub-agents run in parallel where possible (e.g., backend + frontend simultaneous
 
 ---
 
+## Workflow
+
+```
+/ticket --- writes ticket to Board API -----------------.
+                                                        |
+/develop -- picks ticket -- implements -- /ship ---.    |
+                                                   |    |
+              "passt" or /merge -------------------|    |
+                                                   v    |
+                                          squash merge  |
+                                          delete branch |
+                                          status: done <'
+
+Ticket lifecycle:
+  ready_to_develop --> in_progress --> in_review --> done
+```
+
+### Orchestrator Phases
+
+```
+Phase 1: Planning        Orchestrator reads 5-10 affected files, formulates agent instructions
+Phase 2: Implementation  Sub-agents execute in parallel (data-engineer first if schema changes)
+Phase 3: Build Check     Bash command -- DevOps agent only on failure
+Phase 4: Review          Single QA agent -- acceptance criteria + security quick-check
+Phase 5: Ship            Commit --> Push --> PR --> Board status "in_review" --> STOP
+```
+
+---
+
 ## Skills
 
 Skills are specialized instruction sets that guide agents for specific types of work.
 
-### Framework Skills (shipped with the pipeline)
+### Framework Skills
+
+Shipped with the pipeline:
 
 | Skill | Purpose |
 |-------|---------|
@@ -107,9 +140,9 @@ Skills are specialized instruction sets that guide agents for specific types of 
 | **data-engineer** | Database migration and RLS patterns |
 | **webapp-testing** | Testing patterns including Playwright |
 
-### Superpowers Plugin (installed automatically)
+### Superpowers Plugin
 
-Process skills for TDD, debugging, code review, and planning — provided by the [superpowers](https://github.com/obra/superpowers-marketplace) plugin:
+Process skills for TDD, debugging, code review, and planning -- provided by the [superpowers](https://github.com/obra/superpowers-marketplace) plugin. Installed automatically during setup.
 
 | Skill | Purpose |
 |-------|---------|
@@ -126,38 +159,7 @@ Process skills for TDD, debugging, code review, and planning — provided by the
 | **finishing-a-development-branch** | Branch completion workflow |
 | **subagent-driven-development** | Multi-agent task delegation |
 
-### Custom Skills
-
 Add your own project-specific skills in `.claude/skills/`. They are never touched by framework updates.
-
----
-
-## Workflow
-
-```
-/ticket ──── writes ticket to Board API ─────────────┐
-                                                      │
-/develop ── picks ticket ── implements ── /ship ──┐   │
-                                                  │   │
-              "passt" or /merge ──────────────────┤   │
-                                                  ▼   │
-                                         squash merge  │
-                                         delete branch │
-                                         status: done ◄┘
-
-Ticket lifecycle:
-  ready_to_develop → in_progress → in_review → done
-```
-
-### Orchestrator Phases
-
-```
-Phase 1: Planning        Orchestrator reads 5-10 affected files, formulates agent instructions
-Phase 2: Implementation  Sub-agents execute in parallel (data-engineer first if schema changes)
-Phase 3: Build Check     Bash command — DevOps agent only on failure
-Phase 4: Review          Single QA agent — acceptance criteria + security quick-check
-Phase 5: Ship            Commit → Push → PR → Board status "in_review" → STOP
-```
 
 ---
 
@@ -167,54 +169,30 @@ Phase 5: Ship            Commit → Push → PR → Board status "in_review" →
 just-ship/
 ├── setup.sh                    # Install + update script
 ├── agents/                     # Agent definitions (markdown + YAML frontmatter)
-│   ├── orchestrator.md         # Plans, delegates, ships
-│   ├── backend.md              # API, hooks, business logic
-│   ├── frontend.md             # UI components (design-aware)
-│   ├── data-engineer.md        # DB migrations, RLS, types
-│   ├── devops.md               # Build checks, fixes
-│   ├── qa.md                   # AC verification, security review
-│   └── security.md             # Security review
+│   ├── orchestrator.md
+│   ├── backend.md
+│   ├── frontend.md
+│   ├── data-engineer.md
+│   ├── devops.md
+│   ├── qa.md
+│   └── security.md
 ├── commands/                   # Slash commands
-│   ├── ticket.md               # Write a ticket
-│   ├── develop.md              # Implement next ticket
-│   ├── ship.md                 # Commit + push + PR
-│   ├── merge.md                # Squash merge + cleanup
-│   ├── status.md               # Show current status
-│   ├── setup-pipeline.md       # Auto-detect stack, configure project
-│   └── update-pipeline.md      # Sync templates after update
+│   ├── ticket.md
+│   ├── develop.md
+│   ├── ship.md
+│   ├── merge.md
+│   ├── status.md
+│   ├── setup-pipeline.md
+│   └── update-pipeline.md
 ├── skills/                     # Framework skills
-│   ├── ticket-writer.md        # PM-quality ticket writing
-│   ├── design.md               # Design system awareness
-│   ├── frontend-design.md      # Frontend component patterns
-│   ├── creative-design.md      # Greenfield design
-│   ├── ux-planning.md          # UX planning
-│   ├── backend.md              # Backend patterns
-│   ├── data-engineer.md        # Database patterns
-│   └── webapp-testing.md       # Playwright testing
 ├── pipeline/                   # SDK pipeline runner (TypeScript)
 │   ├── run.ts                  # Single execution (CLI or worker import)
 │   ├── worker.ts               # Supabase polling worker (VPS)
 │   ├── run.sh                  # Bash wrapper
-│   └── lib/
-│       ├── config.ts           # Project config loader
-│       ├── load-agents.ts      # Agent definition parser (frontmatter → SDK)
-│       └── event-hooks.ts      # Dev Board event streaming
-├── templates/
-│   ├── CLAUDE.md               # Project instructions template
-│   └── project.json            # Project config template
-├── vps/                        # VPS deployment
-│   ├── setup-vps.sh            # Ubuntu 22.04 setup (Node, gh, claude)
-│   ├── just-ship-pipeline@.service     # systemd template unit
-│   └── README.md               # Step-by-step VPS guide
-└── .claude/
-    ├── hooks/                  # Event streaming hooks
-    │   ├── detect-ticket.sh    # SessionStart: ticket detection from branch
-    │   ├── on-agent-start.sh   # SubagentStart: event to Dev Board
-    │   ├── on-agent-stop.sh    # SubagentStop: event to Dev Board
-    │   └── on-session-end.sh   # SessionEnd: completion event
-    ├── scripts/
-    │   └── send-event.sh       # Event posting utility
-    └── settings.json           # Permissions + hook config template
+│   └── lib/                    # Config, agent loader, event hooks
+├── templates/                  # CLAUDE.md + project.json templates
+├── vps/                        # VPS deployment (systemd, setup script)
+└── .claude/                    # Claude Code config (hooks, scripts, settings)
 ```
 
 ### After Installation
@@ -227,7 +205,7 @@ your-project/
 │   ├── agents/                 # 7 agents (from framework, auto-updated)
 │   ├── commands/               # 7 commands (from framework, auto-updated)
 │   ├── skills/                 # 8 framework skills + your custom skills
-│   ├── hooks/                  # Event streaming (4 lifecycle hooks)
+│   ├── hooks/                  # Event streaming (lifecycle hooks)
 │   ├── scripts/                # Utility scripts
 │   ├── settings.json           # Permissions + hook config
 │   └── .pipeline-version       # Installed framework version
@@ -236,7 +214,7 @@ your-project/
     └── lib/                    # Config, agent loader, events
 ```
 
-For comprehensive technical documentation, see **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
+For a comprehensive technical deep dive, see **[docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)**.
 
 ---
 
@@ -282,7 +260,7 @@ Central config read by all agents and commands. Auto-populated by `/setup-pipeli
 
 ### CLAUDE.md
 
-Project-specific instructions — architecture, conventions, domain knowledge. Generated from a template during setup, then you customize it for your project. Your content is never overwritten on update.
+Project-specific instructions -- architecture, conventions, domain knowledge. Generated from a template during setup, then customized for your project. Your content is never overwritten on update.
 
 ---
 
@@ -297,36 +275,27 @@ Project-specific instructions — architecture, conventions, domain knowledge. G
 ### First Installation
 
 ```bash
-cd /path/to/your-project                    # go to your project
-/path/to/just-ship/setup.sh                 # run the installer
+cd /path/to/your-project
+~/.just-ship/setup.sh
 ```
 
-> **Note:** Replace `/path/to/just-ship` with the actual path where you cloned the framework.
-
-Interactive: asks for project name, generates config files, installs dependencies, sets up the [superpowers](https://github.com/obra/superpowers-marketplace) plugin for TDD, debugging, and code review skills.
+Interactive setup: asks for project name, generates config files, installs dependencies, sets up the [superpowers](https://github.com/obra/superpowers-marketplace) plugin.
 
 ### Update
 
 ```bash
-cd /path/to/your-project                                      # go to your project
-/path/to/just-ship/setup.sh --update                          # apply updates
-/path/to/just-ship/setup.sh --update --dry-run                # preview changes only
+cd /path/to/your-project
+~/.just-ship/setup.sh --update                # apply updates
+~/.just-ship/setup.sh --update --dry-run      # preview changes only
 ```
 
-Updates framework files — your project-specific content is never overwritten:
+Updates framework files. Your project-specific content is never overwritten:
 
 | Updated | Never overwritten |
 |---------|-------------------|
 | `.claude/agents/*`, `commands/*`, `hooks/*` | `CLAUDE.md` |
 | `.claude/skills/<framework>.md` | `project.json` |
 | `.claude/settings.json`, `.pipeline/*` | `.claude/skills/<custom>.md` |
-
-> **Tip:** Create an alias so you don't have to remember the path:
-> ```bash
-> # Add to ~/.zshrc or ~/.bashrc — adjust the path to where YOU cloned the framework
-> alias pipeline-update='/path/to/just-ship/setup.sh --update'
-> ```
-> Then just `cd /path/to/your-project && pipeline-update`.
 
 ### Version Tracking
 
@@ -335,37 +304,21 @@ Installed: abc1234 (2026-02-28)
 Available: def5678 (2026-03-02)
 ```
 
-Tracked in `.claude/.pipeline-version`. If templates changed, you'll be prompted to run `/update-pipeline`.
+Tracked in `.claude/.pipeline-version`. If templates changed, you will be prompted to run `/update-pipeline`.
 
 ---
 
-## Pipeline Runner (SDK)
+## Pipeline Runner
 
-The pipeline is built on the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk):
+The pipeline is built on the [Claude Agent SDK](https://github.com/anthropics/claude-agent-sdk). It loads agent definitions from `.claude/agents/*.md`, streams events to the Dev Board, and produces structured JSON output for automation.
 
-```typescript
-import { query } from "@anthropic-ai/claude-agent-sdk";
-
-for await (const message of query({
-  prompt: orchestratorPrompt,
-  options: {
-    model: "opus",
-    permissionMode: "bypassPermissions",
-    allowedTools: ["Read", "Write", "Edit", "Bash", "Glob", "Grep", "Agent"],
-    agents,  // Loaded from .claude/agents/*.md
-    hooks,   // Dev Board event streaming
-    maxTurns: 200,
-  },
-})) { ... }
-```
-
-### CLI Execution
+### CLI Usage
 
 ```bash
 .pipeline/run.sh <TICKET_ID> <TITLE> [DESCRIPTION] [LABELS]
 ```
 
-Outputs JSON for automation (n8n, CI/CD):
+### JSON Output
 
 ```json
 {
@@ -381,42 +334,42 @@ Outputs JSON for automation (n8n, CI/CD):
 Polls Supabase every 60s for tickets with `status = 'ready_to_develop'`:
 
 ```
-Supabase ticket queue → Worker claims → Orchestrator executes → PR created
+Supabase ticket queue --> Worker claims --> Orchestrator executes --> PR created
 ```
 
 Features: atomic ticket claiming, graceful shutdown (SIGTERM), failure cooldown, max consecutive failure limit.
 
-See **[vps/README.md](vps/README.md)** for the complete deployment guide.
+See **[vps/README.md](vps/README.md)** for the complete VPS deployment guide.
 
 ---
 
 ## Dev Board Integration
 
-The **[Just Ship Board](https://board.just-ship.io)** is the visual companion for the pipeline. It provides a Kanban board, activity timelines, and project setup.
+The **[Just Ship Board](https://board.just-ship.io)** is the visual companion for the pipeline -- a Kanban board with activity timelines and project setup.
 
 ### Connecting a Project
 
-1. Create a workspace and project on the Board
-2. The Board generates an API key and shows a connect command
-3. Run the command in Claude Code: `/setup-pipeline --board https://board.just-ship.io --key <key> --project <uuid>`
+1. Create a workspace and project at [board.just-ship.io](https://board.just-ship.io)
+2. Copy the connect command from the project setup dialog
+3. Run it in Claude Code: `/setup-pipeline --board https://board.just-ship.io --key <key> --project <uuid>`
 4. This writes `api_url`, `api_key`, and `project_id` to `project.json`
 
-Commands (`/ticket`, `/develop`, `/ship`, `/merge`) auto-detect the Board API config and use it for ticket operations and status updates. If no Board API is configured, they fall back to legacy Supabase MCP.
+Commands (`/ticket`, `/develop`, `/ship`, `/merge`) auto-detect the Board config and use it for ticket operations and status updates.
 
 ### Event Streaming
 
-Real-time agent activity streaming via two modes:
+Real-time agent activity via two modes:
 
-1. **SDK Hooks** (Pipeline/VPS) — `SubagentStart`, `SubagentStop`, `PostToolUse` events via Agent SDK callbacks
-2. **Shell Hooks** (Interactive) — `SessionStart`, `SubagentStart/Stop`, `SessionEnd` via `settings.json` hook config
+- **SDK Hooks** (Pipeline/VPS) -- `SubagentStart`, `SubagentStop`, `PostToolUse` events via Agent SDK callbacks
+- **Shell Hooks** (Interactive) -- `SessionStart`, `SubagentStart/Stop`, `SessionEnd` via `settings.json` hook config
 
-Both post to `POST /api/events` with `X-Pipeline-Key` authentication. Events stored in `task_events` (Supabase) and delivered via Supabase Realtime.
+Both post to `POST /api/events` with `X-Pipeline-Key` authentication.
 
 ---
 
 ## Cost
 
-Rough estimates (Anthropic API) — actual costs vary by ticket complexity:
+Rough estimates (Anthropic API) -- actual costs vary by ticket complexity:
 
 | Ticket Type | Agents | Estimated Cost |
 |-------------|--------|----------------|
@@ -427,8 +380,6 @@ Rough estimates (Anthropic API) — actual costs vary by ticket complexity:
 **Model tiering:** Opus for orchestration only. Sonnet for creative work (UI, business logic). Haiku for routine tasks (SQL, builds, reviews).
 
 VPS hosting: ~$4-8/month (Hostinger).
-
-> Per-ticket token tracking is planned — see roadmap.
 
 ---
 
@@ -442,4 +393,4 @@ See [SECURITY.md](SECURITY.md) for reporting vulnerabilities.
 
 ## License
 
-MIT — see [LICENSE](LICENSE)
+MIT -- see [LICENSE](LICENSE)
