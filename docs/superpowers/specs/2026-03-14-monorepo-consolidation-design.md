@@ -209,7 +209,7 @@ Reasons:
 - Types are similar but not identical (Board has UI-specific fields, Bot has Telegram-specific)
 - A shared package adds build complexity (TypeScript compilation, exports config)
 
-The `packages/` directory structure is prepared. Extract shared code when real duplication proves painful after migration — not before.
+A `packages/` directory can be added later when real duplication proves painful after migration — not before.
 
 ---
 
