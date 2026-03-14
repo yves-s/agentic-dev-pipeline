@@ -1,10 +1,10 @@
 # =============================================================================
-# telegram-bot.service — systemd Unit for Telegram Bot
+# agentic-dev-bot.service — systemd Unit for Telegram Bot
 #
 # Installation:
-#   sudo cp telegram-bot.service /etc/systemd/system/
+#   sudo cp vps/agentic-dev-bot.service /etc/systemd/system/
 #   sudo systemctl daemon-reload
-#   sudo systemctl enable --now telegram-bot
+#   sudo systemctl enable --now agentic-dev-bot
 #
 # Voraussetzung:
 #   /home/claude-dev/.env              # Globale Keys (ANTHROPIC_API_KEY, OPENAI_API_KEY)
@@ -29,7 +29,7 @@ StartLimitBurst=5
 Type=simple
 User=claude-dev
 Group=claude-dev
-WorkingDirectory=/home/claude-dev/agentic-dev-pipeline/telegram-bot
+WorkingDirectory=/home/claude-dev/agentic-dev-pipeline/apps/bot
 
 # Globale Keys + bot-spezifische Config
 EnvironmentFile=/home/claude-dev/.env
