@@ -8,3 +8,4 @@
 # misc
 *.tsbuildinfo
 next-env.d.ts
+.vercel
