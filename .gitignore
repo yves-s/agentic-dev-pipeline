@@ -51,3 +51,7 @@ build/
 
 # Superpowers cache
 .superpowers/
+
+# Generated artifacts
+screenshots/
+scripts/
