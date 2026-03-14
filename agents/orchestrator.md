@@ -59,9 +59,27 @@ Lies project.json für Pfade und Stack-Details.
 ## Datei 2: ...
 ```
 
-**Bei Frontend-Agents** immer den Design-Modus explizit angeben:
+**Bei Frontend-Agents** immer den Design-Modus UND Design-Kontext angeben:
 - Neue Seite/Feature ohne bestehendes Design System → `## Design-Modus: Greenfield` (creative-design Skill)
 - Bestehende Komponente erweitern → `## Design-Modus: Bestehend` (design + frontend-design Skills)
+
+Zusätzlich `## Design-Kontext` zwischen `## Aufgabe` und `## Datei 1` einfügen:
+
+```
+## Aufgabe
+{1-2 Sätze was zu tun ist}
+
+## Design-Modus: Bestehend
+
+## Design-Kontext
+- Kontext: {Verwaltung/Settings | Conversion-Flow | Daten-Display | Dashboard}
+- Ähnlichste bestehende Seite: {Pfad} — dort Spacing und Patterns studieren
+- Komplexität: {Wenige/Viele Daten, wenige/viele Aktionen} → {luftig/dicht}
+
+## Datei 1: ...
+```
+
+Der Design-Kontext gibt dem Frontend-Agent **Koordinaten** — keine Pattern-Vorgabe. Der Agent trifft die Design-Entscheidung selbst in seinem Design-Thinking-Schritt.
 
 **Parallelisierung (WICHTIG — spart 50%+ Zeit):**
 - **Mehrere Agent-Tool-Calls in EINER Response = parallele Ausführung.** Das SDK spawnt sie automatisch gleichzeitig.
