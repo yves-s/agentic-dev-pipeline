@@ -470,6 +470,14 @@ read -p "  Description (optional): " PROJECT_DESC
 PROJECT_DESC=${PROJECT_DESC:-""}
 
 echo ""
+echo "How do you want to work?"
+echo "  1) CLI-only — just agents & pipeline, no board"
+echo "  2) Connect to a board"
+echo ""
+read -p "  Choice (1/2): " SETUP_MODE
+SETUP_MODE=${SETUP_MODE:-1}
+
+echo ""
 
 # --- Copy agents ---
 echo "Installing agents..."
@@ -547,9 +555,9 @@ if [ "$OVERWRITE_CONFIG" != "N" ]; then
     "project_id": ""
   },
   "pipeline": {
+    "workspace": "",
     "project_id": "",
-    "project_name": null,
-    "workspace_id": ""
+    "project_name": null
   },
   "conventions": {
     "commit_format": "conventional",
@@ -560,15 +568,6 @@ CONFIG_EOF
   echo "  ✓ project.json"
 else
   echo "  ~ project.json (skipped)"
-fi
-
-# --- Ensure project.json is gitignored (contains API keys) ---
-echo "Checking .gitignore..."
-if [ -f "$PROJECT_DIR/.gitignore" ]; then
-  ensure_gitignore "project.json" "Pipeline config (contains API keys — do not commit)"
-  echo "  ✓ project.json in .gitignore"
-else
-  echo "  ⚠ No .gitignore found — add 'project.json' manually to avoid committing API keys"
 fi
 
 # --- Generate settings.json ---
@@ -589,6 +588,65 @@ else
   echo "  ~ CLAUDE.md (exists, skipped)"
 fi
 
+# --- Copy write-config.sh ---
+cp "$FRAMEWORK_DIR/scripts/write-config.sh" "$PROJECT_DIR/.claude/scripts/write-config.sh"
+chmod +x "$PROJECT_DIR/.claude/scripts/write-config.sh"
+echo "  ✓ write-config.sh (shared config script)"
+
+# --- Board connection ---
+if [ "$SETUP_MODE" = "2" ]; then
+  echo ""
+  echo "Board connection:"
+  echo ""
+  echo "  Paste the connect command from your board,"
+  echo "  or press Enter for manual setup:"
+  echo ""
+  read -p "  > " CONNECT_CMD
+
+  if [ -n "$CONNECT_CMD" ]; then
+    # Parse paste-friendly command: /connect-board --board X --workspace Y --workspace-id Z --key K [--project P]
+    BOARD_URL="" WS_SLUG="" WS_ID="" API_KEY="" PROJECT_ID=""
+    # Strip leading /connect-board if present
+    CONNECT_CMD="${CONNECT_CMD#/connect-board }"
+    # Parse flags from the pasted string
+    set -- $CONNECT_CMD
+    while [[ $# -gt 0 ]]; do
+      case "$1" in
+        --board) BOARD_URL="$2"; shift 2 ;;
+        --workspace) WS_SLUG="$2"; shift 2 ;;
+        --workspace-id) WS_ID="$2"; shift 2 ;;
+        --key) API_KEY="$2"; shift 2 ;;
+        --project) PROJECT_ID="$2"; shift 2 ;;
+        *) shift ;;
+      esac
+    done
+  else
+    # Manual entry
+    read -p "  Board URL (default: https://board.just-ship.io): " BOARD_URL
+    BOARD_URL=${BOARD_URL:-"https://board.just-ship.io"}
+    read -p "  Workspace slug: " WS_SLUG
+    read -p "  Workspace ID: " WS_ID
+    read -p "  API Key: " API_KEY
+    read -p "  Project ID (optional): " PROJECT_ID
+  fi
+
+  if [ -n "$BOARD_URL" ] && [ -n "$WS_SLUG" ] && [ -n "$WS_ID" ] && [ -n "$API_KEY" ]; then
+    "$FRAMEWORK_DIR/scripts/write-config.sh" add-workspace \
+      --slug "$WS_SLUG" --board "$BOARD_URL" --workspace-id "$WS_ID" --key "$API_KEY"
+
+    if [ -n "$PROJECT_ID" ]; then
+      "$FRAMEWORK_DIR/scripts/write-config.sh" set-project \
+        --workspace "$WS_SLUG" --project-id "$PROJECT_ID" --project-name "$PROJECT_NAME" \
+        --project-dir "$PROJECT_DIR"
+    fi
+  else
+    echo "  ⚠ Incomplete board info — skipping. Run /connect-board later."
+  fi
+else
+  echo ""
+  echo "  ✓ CLI-only mode — run /connect-board anytime to add a board"
+fi
+
 # --- Write version + template hash ---
 echo "$FRAMEWORK_VERSION" > "$VERSION_FILE"
 if command -v md5 &>/dev/null; then
@@ -603,11 +661,13 @@ echo "  Setup complete → $FRAMEWORK_VERSION"
 echo "================================================"
 echo ""
 echo "Next steps:"
-echo "  1. Neue Claude Code Session öffnen (wichtig — bestehende Sessions"
-echo "     kennen die neuen Commands noch nicht)"
-echo "  2. /setup-pipeline ausführen (erkennt den Stack automatisch,"
-echo "     befüllt die Config und verbindet das Dev Board)"
-echo "  3. .claude/skills/ — Eigene Skills hinzufügen (optional)"
+echo "  1. Open a new Claude Code session"
+echo "  2. Run /setup-pipeline (detects stack, fills project.json)"
+if [ "$SETUP_MODE" = "2" ]; then
+  echo "  ✓ Board already connected!"
+else
+  echo "  3. Run /connect-board to connect the Just Ship Board (optional)"
+fi
 echo ""
 echo "Framework updaten:"
 echo "  $(basename "$FRAMEWORK_DIR")/setup.sh --update"
