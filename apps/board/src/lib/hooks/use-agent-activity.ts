@@ -42,7 +42,7 @@ function deriveStatus(eventType: string): "running" | "completed" | "failed" | "
  * Subscribes to Supabase Realtime INSERT events on task_events.
  * Uses composite key (ticket_id::agent_type) to support multiple agents per ticket.
  */
-export function useAgentActivity(workspaceId: string, ticketIds?: string[]) {
+export function useAgentActivity(workspaceId: string, ticketIds?: string[], doneTicketIds?: Set<string>) {
   // Map of "ticket_id::agent_type" → activity (supports multiple agents per ticket)
   const [activityMap, setActivityMap] = useState<
     Map<string, AgentActivity & { ticket_id: string }>
@@ -51,6 +51,7 @@ export function useAgentActivity(workspaceId: string, ticketIds?: string[]) {
 
   const isActive = useCallback(
     (ticketId: string) => {
+      if (doneTicketIds?.has(ticketId)) return false;
       const now = Date.now();
       for (const [key, activity] of activityMap) {
         if (!key.startsWith(`${ticketId}::`)) continue;
@@ -62,11 +63,12 @@ export function useAgentActivity(workspaceId: string, ticketIds?: string[]) {
       }
       return false;
     },
-    [activityMap]
+    [activityMap, doneTicketIds]
   );
 
   const getActivity = useCallback(
     (ticketId: string): AgentActivity | null => {
+      if (doneTicketIds?.has(ticketId)) return null;
       const now = Date.now();
       let latest: (AgentActivity & { ticket_id: string }) | null = null;
       for (const [key, activity] of activityMap) {
@@ -81,13 +83,14 @@ export function useAgentActivity(workspaceId: string, ticketIds?: string[]) {
       }
       return latest;
     },
-    [activityMap]
+    [activityMap, doneTicketIds]
   );
 
   const activeAgents = useMemo((): ActiveAgent[] => {
     const now = Date.now();
     const result: ActiveAgent[] = [];
     for (const [, activity] of activityMap) {
+      if (doneTicketIds?.has(activity.ticket_id)) continue;
       const status = deriveStatus(activity.event_type);
       const age = now - new Date(activity.created_at).getTime();
       // Running agents: show until replaced by completed/failed (or 2h crash safety TTL)
@@ -104,7 +107,7 @@ export function useAgentActivity(workspaceId: string, ticketIds?: string[]) {
       }
     }
     return result;
-  }, [activityMap]);
+  }, [activityMap, doneTicketIds]);
 
   // Load recent events on mount for initial state
   useEffect(() => {

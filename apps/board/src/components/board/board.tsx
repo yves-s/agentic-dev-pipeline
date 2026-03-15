@@ -259,6 +259,10 @@ export function Board({
   }
 
   const ticketIds = useMemo(() => initialTickets.map((t) => t.id), [initialTickets]);
+  const doneTicketIds = useMemo(
+    () => new Set(tickets.filter((t) => t.status === "done" || t.status === "in_review").map((t) => t.id)),
+    [tickets]
+  );
 
   // Open ticket from URL deeplink on mount
   useEffect(() => {
@@ -311,7 +315,7 @@ export function Board({
     return () => window.removeEventListener("open-ticket", handleOpenTicket);
   }, [tickets, searchParams, pathname, router, workspaceId]);
 
-  const { isActive, getActivity, activeAgents } = useAgentActivity(workspaceId, ticketIds);
+  const { isActive, getActivity, activeAgents } = useAgentActivity(workspaceId, ticketIds, doneTicketIds);
 
   const sensors = useSensors(
     useSensor(PointerSensor, {
