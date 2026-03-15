@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Plus, Key } from "lucide-react";
 import {
   Card,
@@ -29,12 +30,12 @@ function formatDate(date: string | null | undefined): string {
 }
 
 export function ApiKeysView({ apiKeys: initialKeys, workspaceId }: ApiKeysViewProps) {
+  const router = useRouter();
   const [createOpen, setCreateOpen] = useState(false);
   const [keys, setKeys] = useState<ApiKey[]>(initialKeys);
 
   function handleCreated() {
-    // The new key list will be fetched on next page load (router.refresh from parent)
-    // For now, just close the dialog — parent can refresh
+    router.refresh();
   }
 
   const activeKeys = keys.filter((k) => !k.revoked_at);

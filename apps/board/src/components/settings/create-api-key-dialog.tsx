@@ -56,12 +56,12 @@ export function CreateApiKeyDialog({
 
     if (!res.ok) {
       const json = await res.json().catch(() => ({}));
-      setServerError(json.error ?? "Failed to create API key");
+      setServerError(json.error?.message ?? "Failed to create API key");
       return;
     }
 
     const json = await res.json();
-    setCreatedKey(json.key ?? null);
+    setCreatedKey(json.data?.plaintext ?? null);
     onCreated();
   }
 
