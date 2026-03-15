@@ -1,12 +1,12 @@
 ---
 name: setup-pipeline
-description: Projekt konfigurieren — Stack erkennen, project.json befüllen, Dev Board verbinden
+description: Projekt konfigurieren — Stack erkennen, project.json befüllen
 disable-model-invocation: true
 ---
 
 # /setup-pipeline — Projekt konfigurieren
 
-Erkennt automatisch den Tech-Stack, befüllt `project.json`, ergänzt `CLAUDE.md` und verbindet optional mit dem Just Ship Board. Alles in einem Schritt.
+Erkennt automatisch den Tech-Stack, befüllt `project.json` und ergänzt `CLAUDE.md`. Board-Verbindung separat via `/connect-board`.
 
 ## Voraussetzungen
 
@@ -122,74 +122,12 @@ Lies die aktuelle `CLAUDE.md`. Falls dort noch TODO-Platzhalter stehen:
 - Kurz und prägnant — keine ausschweifenden Beschreibungen
 - Falls kein TODO mehr vorhanden: CLAUDE.md nicht anfassen
 
-### 4. Dev Board verbinden (optional)
+### 4. Board verbinden (Hinweis)
 
-Parse die Argumente des Commands auf `--board`, `--key` und `--project` Flags.
-
-#### Modus 1: Direct Connect (Flags vorhanden)
-
-Falls `--board` und `--key` übergeben wurden:
-
-1. **Projekte abrufen** via Bash curl:
-   ```bash
-   curl -s -H "X-Pipeline-Key: {--key}" "{--board}/api/projects"
-   ```
-   - Bei 401: "Ungültiger API Key. Prüfe den Key im Board unter Settings."
-   - Bei Netzwerkfehler: "Board nicht erreichbar unter {--board}. URL prüfen."
-
-2. **Projekt zuordnen:**
-   - Falls `--project` übergeben: Finde das Projekt mit passender `id` in der API-Antwort (`data.projects[]`). Falls nicht gefunden: Fehler melden.
-   - Falls `--project` NICHT übergeben: Zeige die verfügbaren Projekte und frage den User:
-     ```
-     Verfügbare Projekte:
-       1. {name1}
-       2. {name2}
-       3. + Neues Projekt erstellen
-     ```
-   - Falls User ein neues Projekt erstellen will:
-     ```bash
-     curl -s -X POST -H "X-Pipeline-Key: {--key}" \
-       -H "Content-Type: application/json" \
-       -d '{"name": "{name}"}' \
-       "{--board}/api/projects"
-     ```
-
-3. **Workspace-Infos aus API-Antwort:** `workspace_id` und `workspace_name` kommen direkt aus der `GET /api/projects` Response (`data.workspace_id`, `data.workspace_name`).
-
-#### Modus 2: Interaktiv (keine Flags)
-
-1. Frage: **"Projekt mit dem Just Ship Board verbinden? (J/n)"**
-2. Falls nein: Überspringe diesen Schritt.
-3. Falls ja: Frage nach Board URL und API Key im Gespräch:
-   - Board URL (z.B. `https://board.just-ship.io`)
-   - API Key (z.B. `adp_...`)
-4. Dann weiter wie Modus 1 (curl Aufrufe mit den eingegebenen Werten).
-
-#### Pipeline-Config in project.json schreiben
-
-Schreibe ALLE 5 Felder in die `pipeline` Section von `project.json`:
-
-```json
-"pipeline": {
-  "project_id": "{Board Projekt-UUID aus API Response projects[].id}",
-  "project_name": "{Projektname aus API Response projects[].name}",
-  "workspace_id": "{workspace_id aus API Response}",
-  "api_url": "{Board URL}",
-  "api_key": "{API Key}"
-}
+Falls `pipeline.workspace` in `project.json` nicht gesetzt ist:
 ```
-
-#### Sicherheitscheck
-
-Prüfe ob `project.json` von git getrackt wird:
-```bash
-git ls-files project.json
-```
-
-Falls die Datei getrackt wird, warne:
-```
-project.json wird von git getrackt und enthält jetzt einen API Key.
-Empfehlung: project.json zu .gitignore hinzufuegen.
+Board noch nicht verbunden.
+Führe /connect-board aus um das Just Ship Board zu verknüpfen.
 ```
 
 ### 5. Bestätigung
@@ -205,20 +143,13 @@ Setup abgeschlossen.
   Package Mgr   : {package_manager}
 ```
 
-Falls Dev Board verbunden:
+Falls Board verbunden (`pipeline.workspace` gesetzt):
 ```
-  Board-Projekt : {project_name}
-  Workspace     : {workspace_name}
-  Board URL     : {api_url}
+  Workspace     : {pipeline.workspace}
 ```
 
 ```
 Geänderte Dateien:
-  ✓ project.json  — Stack, Build, Paths, Pipeline
+  ✓ project.json  — Stack, Build, Paths
   ✓ CLAUDE.md     — Beschreibung, Konventionen, Architektur
-```
-
-Falls Dev Board nicht verbunden:
-```
-Tipp: /setup-pipeline erneut ausführen um das Dev Board später zu verbinden.
 ```
