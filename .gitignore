@@ -54,4 +54,6 @@ build/
 
 # Generated artifacts
 screenshots/
-scripts/
+scripts/*
+!scripts/write-config.sh
+.worktrees/

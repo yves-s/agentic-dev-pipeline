@@ -1,5 +1,6 @@
 import { readFileSync, existsSync } from "node:fs";
-import { resolve } from "node:path";
+import { resolve, join } from "node:path";
+import { homedir } from "node:os";
 
 export interface PipelineConfig {
   projectId: string;
@@ -23,6 +24,40 @@ export interface TicketArgs {
   labels: string;
 }
 
+interface WorkspaceEntry {
+  board_url?: string;
+  workspace_id?: string;
+  api_key?: string;
+}
+
+interface GlobalConfig {
+  workspaces: Record<string, WorkspaceEntry>;
+  default_workspace: string | null;
+}
+
+function loadGlobalConfig(): GlobalConfig | null {
+  const configPath = join(homedir(), ".just-ship", "config.json");
+  if (!existsSync(configPath)) return null;
+  try {
+    return JSON.parse(readFileSync(configPath, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
+function buildPipelineConfig(
+  rawPipeline: Record<string, unknown>,
+  ws?: WorkspaceEntry,
+): PipelineConfig {
+  return {
+    projectId:   (rawPipeline.project_id as string) ?? "",
+    projectName: (rawPipeline.project_name as string) ?? "",
+    workspaceId: ws?.workspace_id ?? (rawPipeline.workspace_id as string) ?? "",
+    apiUrl:      ws?.board_url   ?? (rawPipeline.api_url as string) ?? "",
+    apiKey:      ws?.api_key     ?? (rawPipeline.api_key as string) ?? "",
+  };
+}
+
 export function loadProjectConfig(projectDir: string): ProjectConfig {
   const configPath = resolve(projectDir, "project.json");
   if (!existsSync(configPath)) {
@@ -30,21 +65,69 @@ export function loadProjectConfig(projectDir: string): ProjectConfig {
       name: "project",
       description: "",
       conventions: { branch_prefix: "feature/" },
-      pipeline: { projectId: "", projectName: "", workspaceId: "", apiUrl: "", apiKey: "" },
+      pipeline: buildPipelineConfig({}),
     };
   }
   const raw = JSON.parse(readFileSync(configPath, "utf-8"));
+
+  // --- Pipeline config resolution ---
+  let pipeline: PipelineConfig;
+  const rawPipeline = raw.pipeline ?? {};
+
+  // Hoist: load global config once for all branches
+  const globalConfig = loadGlobalConfig();
+
+  // Check for old format (api_key directly in project.json)
+  if (rawPipeline.api_key) {
+    console.warn(
+      "\u26a0 api_key in project.json is deprecated.\n" +
+      "  Run /connect-board to migrate to ~/.just-ship/config.json"
+    );
+
+    // Try global config first (takes priority)
+    const workspaceSlug = rawPipeline.workspace;
+    if (globalConfig && workspaceSlug && globalConfig.workspaces[workspaceSlug]) {
+      const ws = globalConfig.workspaces[workspaceSlug];
+      pipeline = buildPipelineConfig(rawPipeline, ws);
+    } else {
+      // Fall back to old format
+      pipeline = buildPipelineConfig(rawPipeline);
+    }
+  } else if (rawPipeline.workspace) {
+    // New format: resolve from global config
+    const slug = rawPipeline.workspace;
+
+    if (!globalConfig) {
+      console.warn(
+        `\u26a0 Workspace '${slug}' configured but ~/.just-ship/config.json not found.\n` +
+        `  Run /connect-board to set it up.`
+      );
+      pipeline = buildPipelineConfig(rawPipeline);
+    } else {
+      const ws = globalConfig.workspaces[slug];
+      if (!ws) {
+        console.error(
+          `Workspace '${slug}' not found in ~/.just-ship/config.json.\n` +
+          `Run /connect-board to set it up.`
+        );
+        pipeline = buildPipelineConfig(rawPipeline);
+      } else {
+        pipeline = buildPipelineConfig(rawPipeline, ws);
+      }
+    }
+  } else {
+    // No pipeline config at all — check for default workspace
+    const defaultSlug = globalConfig?.default_workspace;
+    const defaultWs = defaultSlug ? globalConfig?.workspaces[defaultSlug] : undefined;
+
+    pipeline = buildPipelineConfig(rawPipeline, defaultWs);
+  }
+
   return {
     name: raw.name ?? "project",
     description: raw.description ?? "",
     conventions: { branch_prefix: raw.conventions?.branch_prefix ?? "feature/" },
-    pipeline: {
-      projectId: raw.pipeline?.project_id ?? "",
-      projectName: raw.pipeline?.project_name ?? "",
-      workspaceId: raw.pipeline?.workspace_id ?? "",
-      apiUrl: raw.pipeline?.api_url ?? "",
-      apiKey: raw.pipeline?.api_key ?? "",
-    },
+    pipeline,
   };
 }
 
