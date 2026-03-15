@@ -132,7 +132,7 @@ Each card: dark background, uppercase label, large number.
 - members count + first 5 members
 - open tickets count
 - active API keys count
-- recent tickets (last 10, ordered by updated_at)
+- recent tickets (last 10, ordered by created_at)
 - recent members (last 5, ordered by joined_at)
 - recent projects (last 5, ordered by created_at)
 ```
