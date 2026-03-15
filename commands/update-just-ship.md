@@ -1,10 +1,10 @@
 ---
-name: update-pipeline
+name: update-just-ship
 description: CLAUDE.md und project.json gegen aktuelle Framework-Templates abgleichen und ergänzen
 disable-model-invocation: true
 ---
 
-# /update-pipeline — Projekt-Dateien aktualisieren
+# /update-just-ship — Projekt-Dateien aktualisieren
 
 Gleicht `CLAUDE.md` und `project.json` gegen die aktuellen Framework-Templates ab und ergänzt fehlende Abschnitte/Felder. Wird nach `setup.sh --update` ausgeführt, wenn sich Templates geändert haben.
 
@@ -98,7 +98,7 @@ Lies die aktuelle `project.json`. Vergleiche gegen die erwartete Struktur:
 Zeige eine Zusammenfassung der Änderungen:
 
 ```
-/update-pipeline abgeschlossen.
+/update-just-ship abgeschlossen.
 
 CLAUDE.md:
   ✓ Ticket-Workflow-Tabelle aktualisiert (/ticket → /develop Trennung)

@@ -73,7 +73,7 @@ claude
 | `/ship` | Commit + push + PR + squash merge + board status "done" | Yes |
 | `/status` | Show current ticket, branch, and changes | -- |
 | `/setup-pipeline` | Auto-detect stack, configure project, connect Dev Board | Interactive |
-| `/update-pipeline` | Sync project files after framework update | Interactive |
+| `/update-just-ship` | Sync project files after framework update | Interactive |
 
 **Conversational triggers:** Saying "passt", "done", "fertig", or "sieht gut aus" automatically executes `/ship`.
 
@@ -185,7 +185,7 @@ just-ship/
 │   ├── ship.md
 │   ├── status.md
 │   ├── setup-pipeline.md
-│   └── update-pipeline.md
+│   └── update-just-ship.md
 ├── skills/                     # Framework skills
 ├── pipeline/                   # SDK pipeline runner (TypeScript)
 │   ├── run.ts                  # Single execution (CLI or worker import)
@@ -306,7 +306,7 @@ Installed: abc1234 (2026-02-28)
 Available: def5678 (2026-03-02)
 ```
 
-Tracked in `.claude/.pipeline-version`. If templates changed, you will be prompted to run `/update-pipeline`.
+Tracked in `.claude/.pipeline-version`. If templates changed, you will be prompted to run `/update-just-ship`.
 
 ---
 

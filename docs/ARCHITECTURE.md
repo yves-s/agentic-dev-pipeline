@@ -132,7 +132,7 @@ just-ship/                         # Framework repository
 |   +-- ship.md                    # Commit, push, PR, merge, done (/ship)
 |   +-- status.md                  # Show current status (/status)
 |   +-- setup-pipeline.md          # Auto-detect stack, configure project
-|   +-- update-pipeline.md         # Sync templates after framework update
+|   +-- update-just-ship.md         # Sync templates after framework update
 +-- skills/                        # Framework skills (copied to projects)
 |   +-- ticket-writer.md           # PM-quality ticket writing
 |   +-- design.md                  # Design system awareness
@@ -288,7 +288,7 @@ Commands are markdown files in `commands/` with frontmatter metadata. They provi
 |---------|---------|
 | `/status` | Show current ticket, branch, and change summary |
 | `/setup-pipeline` | Auto-detect stack, fill `project.json`, connect Just Ship Board |
-| `/update-pipeline` | Sync `CLAUDE.md` and `project.json` after framework update |
+| `/update-just-ship` | Sync `CLAUDE.md` and `project.json` after framework update |
 
 ### Conversational Triggers
 
