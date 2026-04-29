@@ -6,6 +6,12 @@
 
 Entfernt den globalen Pfad `~/.just-ship/config.json` vollständig aus dem Engine-Code. Konfiguration ist jetzt 100 % projekt-lokal: `project.json` (committed) hält `pipeline.workspace_id` / `pipeline.project_id` / `pipeline.board_url`, `.env.local` (gitignored) hält `JSP_BOARD_API_KEY` und alle anderen projekt-spezifischen Secrets. `pipeline/lib/config.ts` liest Credentials nur noch aus `process.env` + `.env.local` + `SERVER_CONFIG_PATH` (für VPS-Multi-Project). `scripts/write-config.sh` verliert `add-workspace`, `read-workspace`, `remove-board` und `migrate` — neuer `set-key`-Subcommand upserted beliebige `KEY=VALUE`-Pairs in `.env.local`. `.claude/scripts/board-api.sh`, `post-comment.sh`, `send-event.sh`, `coolify-api.sh`, `get-preview-url.sh`, `shopify-dev.sh`, `shopify-preview.sh` migriert auf die neue Resolution; keiner ruft mehr `read-workspace` auf. `setup.sh` erkennt existierende `~/.just-ship/config.json`, kopiert die zur `pipeline.workspace_id` passenden Credentials nach `.env.local` und fragt einmalig `Lokale ~/.just-ship/config.json löschen? [Y/n]`. Anti-Regression: `board-api.test.sh` greppt repo-weit nach `just-ship/config.json` und `write-config.sh read-workspace` — schlägt fehl wenn ein neuer Caller hinzukommt. 10/10 Bash-Tests grün, 816/816 Vitest grün, TypeScript-Typecheck clean.
 
+## [T-1062] Wrapper drift-check: .pipeline/run.sh prüft Source vs Install vor Trigger — 2026-04-29
+
+**Bereiche:** Pipeline, Shared
+
+Der Pipeline-Wrapper `.pipeline/run.sh` prüft jetzt bei jedem Aufruf, ob die installierte Pipeline-Version mit dem aktuellen Source-Stand übereinstimmt. Im Engine-Repo wird bei Drift automatisch `setup.sh --update` ausgeführt; in Consumer-Repos erscheint eine klare Fehlermeldung mit Versions-Diff. `setup.sh` schreibt zusätzlich einen `.pipeline/.version-stamp` für die Consumer-Repo-Erkennung. Die Rule `self-install-topology.md` dokumentiert das neue Anti-Pattern und den Drift-Check.
+
 ## [T-625] VPS Integration Test — Pipeline Merge Gate — 2026-04-07
 
 **Bereiche:** Pipeline, Quality
