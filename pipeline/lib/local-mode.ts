@@ -22,6 +22,7 @@ import {
   patchTicketOnBoard,
   ticketArgsFromBoard,
 } from "./board-fetch.ts";
+import { sanitizeBranchName } from "./sanitize.ts";
 import type { SubcommandArgs } from "./cli-args.ts";
 
 export interface LocalModeContext {
@@ -281,6 +282,20 @@ export async function executeLocalShip(args: SubcommandArgs, cwd: string): Promi
       status: "failed",
       exitCode: 1,
       message: `Refusing to ship from "${branchName}" — must be a feature branch.`,
+    };
+  }
+  // SECURITY: branch names are interpolated into shell strings below
+  // (`git push origin "${branchName}"`). Even though git enforces ref-format
+  // rules, characters like `$` and backticks are still legal in git refs but
+  // dangerous inside double-quoted shell strings. Reject anything that does
+  // not match the strict allow-list before any further shell call.
+  try {
+    sanitizeBranchName(branchName);
+  } catch (err) {
+    return {
+      status: "failed",
+      exitCode: 1,
+      message: `Unsafe branch name: ${err instanceof Error ? err.message : String(err)}`,
     };
   }
 

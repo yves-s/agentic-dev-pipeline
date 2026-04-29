@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import { parseArgs } from "./cli-args.ts";
 import { ticketArgsFromBoard } from "./board-fetch.ts";
+import { sanitizeBranchName } from "./sanitize.ts";
 
 /**
  * Unit tests for the local-mode CLI surface added in T-1060.
@@ -124,6 +125,34 @@ describe("parseArgs — legacy positional shape", () => {
 
   it("rejects empty args", () => {
     expect(() => parseArgs([])).toThrow();
+  });
+});
+
+describe("branch-name sanitisation (defence-in-depth for ship/recover)", () => {
+  // The local /ship path reads `git branch --show-current` and interpolates
+  // the result into double-quoted execSync strings. Git ref-format allows
+  // some characters that are still dangerous inside shell strings (`$`,
+  // backticks, parens). We rely on sanitizeBranchName to reject those before
+  // any shell call. These tests pin the contract.
+
+  it("accepts canonical feature branches", () => {
+    expect(() => sanitizeBranchName("feature/T-42-bun-trigger-refactor")).not.toThrow();
+    expect(() => sanitizeBranchName("feature/T-1060")).not.toThrow();
+    expect(() => sanitizeBranchName("fix/T-7-some-fix")).not.toThrow();
+  });
+
+  it("rejects shell metacharacters that survive git ref-format", () => {
+    // These are the characters that git allows in refs but break shell strings.
+    expect(() => sanitizeBranchName("feature/$(whoami)")).toThrow();
+    expect(() => sanitizeBranchName("feature/`id`")).toThrow();
+    expect(() => sanitizeBranchName('feature/"; rm -rf /;"')).toThrow();
+    expect(() => sanitizeBranchName("feature/branch&evil")).toThrow();
+    expect(() => sanitizeBranchName("feature/branch|evil")).toThrow();
+  });
+
+  it("rejects empty / whitespace branch names", () => {
+    expect(() => sanitizeBranchName("")).toThrow();
+    expect(() => sanitizeBranchName("   ")).toThrow();
   });
 });
 
