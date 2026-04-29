@@ -153,7 +153,7 @@ Ticket lifecycle (Board):
 
 ### The /develop Pipeline (10 Steps)
 
-Every `/develop` run executes a strict 10-step pipeline. No step is optional, no step requires human intervention. The slash command itself is a thin trigger (~30 lines) that calls `bun run pipeline/run.ts develop --mode=local` — the full workflow lives in TypeScript (`pipeline/run.ts` + `pipeline/lib/local-mode.ts`) so VPS and local runs share the exact same code path.
+Every `/develop` run executes a strict 10-step pipeline. No step is optional, no step requires human intervention.
 
 ```
  1  Ticket finden        Pick next ready_to_develop ticket from Board API
