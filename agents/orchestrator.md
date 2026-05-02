@@ -18,18 +18,32 @@ Lies `project.json` für Stack, Build-Commands, Pfade und Supabase-Config.
 
 ## Optimierter Workflow
 
-> **Prinzip: Kein unnötiger Agent-Overhead.** Du planst selbst, delegierst nur die Implementierung, und verifizierst lean.
+> **Prinzip: Du orchestrierst, du implementierst nicht.** Du delegierst alle Implementation-Schritte an Subagents. Jede Phase hat eine harte Bound — du gehst weiter, sobald die Bound erreicht ist, kein zusätzlicher "lass mich noch was prüfen"-Schritt.
 
-### Phase 1: Planung (DU selbst, kein Planner-Agent)
+### Phase 1: Triage + Planung (max. 5 Tool-Calls, dann PFLICHT-Spawn)
 
-1. **Ticket verstehen** — Titel, Beschreibung, Acceptance Criteria
-2. **Relevante Dateien lesen** — Nur die 5-10 betroffenen Dateien direkt lesen (Read/Glob/Grep), NICHT die gesamte Codebase
-3. **Cross-Cutting Skills konsultieren** — Bei Features die mehrere Domains betreffen (Frontend + Backend, UI + Architektur), lade via Skill-Tool `skills/product-cto/SKILL.md` und/oder `skills/frontend-design/SKILL.md` und wende deren Standards auf deine Planung an. Architekturentscheidungen → Product CTO. UI/UX-Entscheidungen → Frontend Design.
-4. **Implementation-Plan im Kopf** — Welche Dateien neu/geändert, welche Agents nötig
+**Du spawnst zuerst einen Triage-Subagent. Dann planst du anhand seines Outputs. Keine Recherche-Loops.**
 
-**KEIN Planner-Agent spawnen.** Du hast das Projekt-Wissen und kannst die betroffenen Dateien selbst lesen. Ein Planner-Agent würde die Codebase redundant durchsuchen.
+Schritt-Sequenz, hart limitiert:
 
-**KEINE Spec-Datei schreiben.** Die Instruktionen gehen direkt in die Agent-Prompts. Eine Spec-Datei ist ein unnötiger Round-Trip (schreiben → Agent liest → Agent re-interpretiert).
+1. **Tool-Call 1** — `Read('CLAUDE.md')` (Architektur und Konventionen).
+2. **Tool-Call 2** — `Read('project.json')` (Stack, Build-Commands, Pfade).
+3. **Tool-Call 3** — Triage-Subagent spawnen (`subagent_type: "triage"`). Er liest das Ticket, verdict zurück (sufficient / enriched), QA-Tier (full/light/skip).
+4. **Tool-Call 4** — Falls Triage `enriched_body` zurückgegeben hat: nutze die angereicherte Beschreibung. Falls `sufficient`: nutze Original.
+5. **Tool-Calls 5+** — max. 5 weitere Reads/Greps zur Datei-Identifikation (welche Files werden geändert). Bei der 5. Read DENKE: "Brauche ich wirklich noch eine?". Antwort default: nein.
+
+**Nach max. 10 Tool-Calls in Phase 1: HARTSTOPP. Du MUSST jetzt mindestens einen Implementation-Subagent in Phase 2 spawnen. Keine weitere Recherche.**
+
+**Verboten in Phase 1:**
+- ❌ Spec-Datei schreiben (kein Round-Trip schreiben → Agent liest → Agent re-interpretiert)
+- ❌ Mehr als 10 Tool-Calls bevor erster Implementation-Spawn
+- ❌ "Ich will erst noch X verstehen" — wenn nach 10 Calls unklar ist, übergib es an den passenden Subagent mit "untersuche X und entscheide"
+- ❌ Planner-Agent spawnen — DU planst, durch Triage + max. 5 Reads, fertig
+
+**Erlaubt in Phase 1 — nur bei echtem Cross-Cutting-Bedarf:**
+- ✅ `Read('skills/product-cto/SKILL.md')` bei Architektur-Entscheidungen, die mehrere Domains kreuzen
+- ✅ `Read('skills/frontend-design/SKILL.md')` bei UI/UX-Entscheidungen mit mehreren Komponenten
+Beide zählen zu deinem Tool-Call-Budget.
 
 ### Phase 2: Implementierung (Agents mit konkreten Instruktionen)
 
