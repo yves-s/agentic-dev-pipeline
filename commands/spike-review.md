@@ -280,5 +280,5 @@ Spike-Review abgeschlossen:
 
 - NICHT den Skill `finishing-a-development-branch` aufrufen
 - NICHT Code implementieren — dieses Command erstellt nur Tickets
-- NICHT `cat ~/.just-ship/config.json` — IMMER `board-api.sh` verwenden
+- NICHT direkt aus Credential-Files lesen (`.env.local`, `~/.just-ship/config.json`) — IMMER `board-api.sh` verwenden, der Wrapper resolved Tier-für-Tier
 - NICHT automatisch `/develop` starten nach dem Review

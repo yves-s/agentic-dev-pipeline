@@ -253,4 +253,4 @@ Der User beschreibt was gefixt werden soll. Dann:
 - NICHT `git add -A` oder `git add .`
 - NICHT `--force` push
 - NICHT mergen ohne "passt" — das macht `/ship`
-- NICHT `cat ~/.just-ship/config.json` — IMMER `board-api.sh` verwenden
+- NICHT direkt aus Credential-Files lesen (`.env.local`, `~/.just-ship/config.json`) — IMMER `board-api.sh` verwenden, der Wrapper resolved Tier-für-Tier

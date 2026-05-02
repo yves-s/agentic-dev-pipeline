@@ -20,7 +20,7 @@
 #   coolify-api.sh logs <app-uuid> [lines]        Get application logs
 #
 # Configuration:
-#   Token:  ~/.just-ship/config.json → coolify_api_token
+#   Token:  COOLIFY_API_TOKEN env var → .env.local → ~/.just-ship/config.json (legacy)
 #   URL:    project.json → hosting.coolify_url
 #
 # Exit codes:
@@ -57,24 +57,34 @@ USAGE
 fi
 
 # --- Resolve credentials (silently) ---
+# Resolution order (matches board-api.sh / get-preview-url.sh patterns):
+#   Tier 1: COOLIFY_API_TOKEN env var
+#   Tier 2: .env.local (project-local, gitignored, primary post-T-1043)
+#   Tier 3: ~/.just-ship/config.json (legacy global config, still supported but deprecated)
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-CONFIG_FILE="${HOME}/.just-ship/config.json"
+LEGACY_CONFIG_FILE="${HOME}/.just-ship/config.json"
 
-# Resolve Coolify API token from config
-if [ -f "$CONFIG_FILE" ]; then
+# Tier 1: env var
+COOLIFY_TOKEN="${COOLIFY_API_TOKEN:-}"
+
+# Tier 2: .env.local
+if [ -z "$COOLIFY_TOKEN" ] && [ -f .env.local ]; then
+  COOLIFY_TOKEN=$(grep '^COOLIFY_API_TOKEN=' .env.local 2>/dev/null | cut -d'=' -f2-)
+fi
+
+# Tier 3: legacy global config (last fallback)
+if [ -z "$COOLIFY_TOKEN" ] && [ -f "$LEGACY_CONFIG_FILE" ]; then
   COOLIFY_TOKEN=$(node -e "
     try {
-      const c = JSON.parse(require('fs').readFileSync('$CONFIG_FILE', 'utf-8'));
+      const c = JSON.parse(require('fs').readFileSync('$LEGACY_CONFIG_FILE', 'utf-8'));
       process.stdout.write(c.coolify_api_token || '');
     } catch(e) { process.stdout.write(''); }
   " 2>/dev/null) || COOLIFY_TOKEN=""
-else
-  COOLIFY_TOKEN=""
 fi
 
 if [ -z "$COOLIFY_TOKEN" ]; then
   exec 2>&3  # Restore stderr
-  echo '{"error": "no_coolify_token", "message": "coolify_api_token not set in ~/.just-ship/config.json"}' >&2
+  echo '{"error": "no_coolify_token", "message": "COOLIFY_API_TOKEN not set — add to .env.local (COOLIFY_API_TOKEN=...) or env var"}' >&2
   exit 1
 fi
 

@@ -101,9 +101,9 @@ Führe 'just-ship connect' im Terminal aus um ein Projekt auszuwählen.
 
 **Credentials fehlen:**
 ```
-⚠ Workspace in project.json gesetzt, aber API-Key fehlt in ~/.just-ship/config.json.
+⚠ Workspace in project.json gesetzt, aber API-Key fehlt in .env.local.
 
-Führe 'just-ship connect' mit einem neuen Code im Terminal aus.
+Führe 'just-ship connect' mit einem neuen Code im Terminal aus — der Befehl schreibt JSP_BOARD_API_KEY in .env.local (gitignored, chmod 600). Falls du noch eine alte Installation hast, die ~/.just-ship/config.json nutzt: das funktioniert weiter als Legacy-Fallback.
 ```
 
 **Plugin-Credentials konfiguriert (kein project.json):**

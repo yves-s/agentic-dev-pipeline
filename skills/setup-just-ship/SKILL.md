@@ -126,7 +126,8 @@ Falls `.claude/agents/` bereits existiert UND `project.json` bereits existiert m
 
 Prüfe den Status:
 - `project.json` → `pipeline.workspace_id` gesetzt? → Board verbunden
-- `~/.just-ship/config.json` → Workspace-Einträge vorhanden?
+- `.env.local` → `JSP_BOARD_API_KEY` gesetzt? (primärer Credential-Pfad)
+- `~/.just-ship/config.json` → Workspace-Einträge (Legacy-Fallback, nur bei Alt-Installation)?
 
 Falls Stack erkannt aber Board NICHT verbunden:
 
@@ -341,11 +342,21 @@ Keine weiteren Erklärungen. Das Board hat einen Onboarding-Stepper der alles er
 
 Wenn der User zurückkommt, prüfe ob die Verbindung eingerichtet wurde:
 ```bash
-cat "$HOME/.just-ship/config.json" 2>/dev/null | node -e "
-  const c=JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'));
-  const ws=Object.keys(c.workspaces||{});
-  console.log(ws.length ? 'CONNECTED:' + ws.join(',') : 'NOT_CONNECTED');
-"
+# Primary: .env.local (current connect-flow writes here)
+if [ -f .env.local ] && grep -q '^JSP_BOARD_API_KEY=' .env.local 2>/dev/null; then
+  echo "CONNECTED:env"
+# Legacy fallback: ~/.just-ship/config.json (old installations)
+elif [ -f "$HOME/.just-ship/config.json" ]; then
+  cat "$HOME/.just-ship/config.json" 2>/dev/null | node -e "
+    try {
+      const c=JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'));
+      const ws=Object.keys(c.workspaces||{});
+      console.log(ws.length ? 'CONNECTED:legacy:' + ws.join(',') : 'NOT_CONNECTED');
+    } catch(e) { console.log('NOT_CONNECTED'); }
+  "
+else
+  echo "NOT_CONNECTED"
+fi
 ```
 
 Falls CONNECTED: Bestätige mit `✓ Board verbunden`
