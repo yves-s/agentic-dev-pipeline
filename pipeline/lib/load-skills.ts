@@ -68,6 +68,14 @@ const SKILL_AGENT_MAP: Record<string, AgentRole[]> = {
   "writing-plans": ["orchestrator"],
   "systematic-debugging": ["orchestrator", "backend", "frontend", "qa"],
   "find-skills": ["orchestrator"],
+
+  // Reporter is the single source of truth for user-visible output voice.
+  // Every agent that emits ▶/✓/↻/✗ phase-progress lines needs it injected,
+  // otherwise they improvise their own format and the stream becomes
+  // inconsistent. Includes orchestrator (renders develop-complete + phase
+  // progress), all implementers (phase-progress per spawn), code-review/qa
+  // (their own ✓/✗ output), and triage (verdict line).
+  "reporter": ["orchestrator", "backend", "frontend", "data-engineer", "qa", "security", "devops", "triage"],
 };
 
 /** Parsed frontmatter from a skill file */
