@@ -60,6 +60,35 @@ GIT_ALLOW_INSTALLED_EDIT=1 git commit -m "chore: ..."
 
 Das Flag ist eine bewusste Entscheidung, nicht ein Default. Wer es setzt, weiß warum.
 
+## Anti-Pattern: Stale Install nach Source-Edit (T-1062)
+
+Das kritischste Drift-Szenario: jemand editiert `pipeline/`-Source, committed und mergt, aber vergisst `setup.sh --update`. Die installierte `.pipeline/` bleibt auf dem alten Stand, der nächste `bash .pipeline/run.sh`-Aufruf startet die veraltete Version — ohne Warnung, ohne Hinweis.
+
+Der Incident am 2026-04-29 (T-1062) illustriert das Pattern: T-1060 verlagerte den Subcommand-Dispatch nach TypeScript, aber die lokale `.pipeline/`-Kopie blieb auf dem Stand vor dem Merge. Die alte Pipeline kannte keinen Subcommand-Modus, las `ship` als Ticket-ID, erzeugte Phantom-Branches und Phantom-PRs. Die Symptome waren irreführend und nicht zuordenbar.
+
+### Leitplanke: Drift-Check im Wrapper
+
+`pipeline/run.sh` (Source → wird zu `.pipeline/run.sh`) enthält seit T-1062 einen Drift-Check, der bei jedem Aufruf lokal prüft:
+
+| Szenario | Erkennung | Reaktion |
+|---|---|---|
+| Engine-Repo, `pipeline/` hat sich seit Install geändert | `git diff --quiet <installed_hash> HEAD -- pipeline/` | Auto-Update via `setup.sh --update`, dann Pipeline starten |
+| Consumer-Repo, `.claude/.pipeline-version` ≠ `.pipeline/.version-stamp` | Stempel-Vergleich | Fehlermeldung mit Versions-Diff, Exit 1 |
+| Kein Drift | Kein Diff / Stempel identisch | Sofort durchlaufen (Latency < 100ms) |
+
+Bypass: `JUSTSHIP_SKIP_DRIFT_CHECK=1` — nur für Debugging, nicht als Dauerlösung.
+
+### Wann der Bypass legitim ist
+
+- CI-Pipelines, die `setup.sh --update` garantiert vorher laufen lassen
+- Debugging des Drift-Checks selbst
+- Temporär, wenn `setup.sh --update` aus anderem Grund fehlschlägt (dann das eigentliche Problem fixen)
+
+### Wann der Bypass NICHT legitim ist
+
+- "Ich will schnell testen" — genau das führte zu T-1062
+- "Der Auto-Update dauert zu lang" — der Drift-Check selbst ist < 100ms, nur das Auto-Update braucht Zeit, und das ist besser als stale Code
+
 ## Anti-Patterns
 
 ❌ `.pipeline/lib/load-skills.ts` öffnen und "nur kurz" ein Verhalten tweaken. Der Tweak ist weg beim nächsten `setup.sh --update`, und bis dahin verhält sich die installierte Engine anders als die Source-Engine.
@@ -85,6 +114,8 @@ Am 2026-04 hat jemand in `.pipeline/lib/load-skills.ts` editiert, die Änderung 
 1. Liegt die Datei unter einem der **drei Hook-blockierten Pfade** (`.pipeline/`, `.claude/.pipeline-version`, `.claude/.template-hash`)? Falls ja: **STOP.** Source-Pfad ist `pipeline/…` (ohne Punkt), bzw. bei den Stempel-Dateien gar keiner — dann ist die Änderung ein `setup.sh`-Job, kein manueller Edit.
 2. Liegt die Datei unter `.claude/agents/`, `.claude/commands/`, oder `.claude/skills/`? Falls ja: **STOP.** Der Hook warnt hier nicht, aber der Edit wird beim nächsten Update überschrieben. Edit-Punkt ist `agents/`, `commands/` oder `skills/<name>/SKILL.md`.
 3. Falls keines von beidem: freie Fahrt (`.claude/rules/`, `.claude/scripts/`, `.claude/hooks/`, oder direkt in den Source-Verzeichnissen).
+4. Habe ich gerade `pipeline/`-Source editiert? Falls ja, MUSS `setup.sh --update` laufen, bevor ich `bash .pipeline/run.sh` aufrufe. Der Wrapper prüft das jetzt selbst (T-1062 Drift-Check), aber die Disziplin liegt trotzdem beim Editierenden.
+5. Wenn ich in einem Worktree arbeite: der Drift-Check vergleicht gegen den Worktree-HEAD, nicht den Main-Branch. Das ist korrekt — der Worktree hat seine eigene `pipeline/`-Kopie.
 
 ## Verwandte Regeln
 

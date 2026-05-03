@@ -834,6 +834,8 @@ if [ "$MODE" = "update" ]; then
     # Still update version marker so it stays in sync (but not in dry-run/check mode)
     if [ "$DRY_RUN" != true ]; then
       echo "$FRAMEWORK_VERSION" > "$VERSION_FILE"
+      # Write version stamp into .pipeline/ for consumer-repo drift detection
+      [ -d "$PROJECT_DIR/.pipeline" ] && echo "$FRAMEWORK_VERSION" > "$PROJECT_DIR/.pipeline/.version-stamp"
 
       # Shopify plugin injection: use detect-shopify.sh (file-based detection),
       # not stack.platform — the field may be empty on projects installed before auto-detection.
@@ -999,6 +1001,7 @@ if [ "$MODE" = "update" ]; then
   mkdir -p "$PROJECT_DIR/.pipeline/lib"
   cp "$FRAMEWORK_DIR/pipeline/lib/"*.ts "$PROJECT_DIR/.pipeline/lib/"
   chmod +x "$PROJECT_DIR/.pipeline/"*.sh 2>/dev/null || true
+  echo "$FRAMEWORK_VERSION" > "$PROJECT_DIR/.pipeline/.version-stamp"
   # Cleanup removed files
   rm -f "$PROJECT_DIR/.pipeline/send-event.sh"
   rm -f "$PROJECT_DIR/.pipeline/lib/mcp-tools.ts"
@@ -1074,6 +1077,8 @@ if [ "$MODE" = "update" ]; then
 
   # Write version
   echo "$FRAMEWORK_VERSION" > "$VERSION_FILE"
+  # Write version stamp into .pipeline/ for consumer-repo drift detection
+  [ -d "$PROJECT_DIR/.pipeline" ] && echo "$FRAMEWORK_VERSION" > "$PROJECT_DIR/.pipeline/.version-stamp"
 
   # Write framework version to project.json
   write_framework_version_to_project_json "$PROJECT_DIR/project.json" "$FRAMEWORK_VERSION"
@@ -1334,6 +1339,7 @@ cp "$FRAMEWORK_DIR/pipeline/package.json" "$PROJECT_DIR/.pipeline/package.json"
 cp "$FRAMEWORK_DIR/pipeline/tsconfig.json" "$PROJECT_DIR/.pipeline/tsconfig.json"
 cp "$FRAMEWORK_DIR/pipeline/lib/"*.ts "$PROJECT_DIR/.pipeline/lib/"
 chmod +x "$PROJECT_DIR/.pipeline/"*.sh 2>/dev/null || true
+echo "$FRAMEWORK_VERSION" > "$PROJECT_DIR/.pipeline/.version-stamp"
 echo "  Installing pipeline dependencies..."
 (cd "$PROJECT_DIR/.pipeline" && npm install --production 2>/dev/null)
 ensure_gitignore ".pipeline/node_modules" "Pipeline dependencies (auto-installed)"
