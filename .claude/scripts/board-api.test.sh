@@ -129,14 +129,46 @@ EOF
 
 test_no_root_config_introduced() {
   local name="AC7: Anti-regression — board-api.sh does not read ~/.just-ship/config.json"
-  if grep -q 'just-ship/config\.json' "$SCRIPT"; then
-    # The legacy fallback (Tier 4) routes through write-config.sh, not direct file reads.
-    # We only flag if there is a NEW direct read, which there shouldn't be.
-    if grep -q 'cat.*just-ship/config\.json\|require.*just-ship/config\.json' "$SCRIPT"; then
-      test_fail "$name" "Direct read of ~/.just-ship/config.json detected"
-    else
-      test_pass "$name"
-    fi
+  # Comments about the legacy path are fine; actual reads are not.
+  if grep -E '(cat|require|readFileSync|jq).*just-ship/config\.json' "$SCRIPT" \
+     | grep -v '^[[:space:]]*#' >/dev/null 2>&1; then
+    test_fail "$name" "Active read of ~/.just-ship/config.json detected in board-api.sh"
+  else
+    test_pass "$name"
+  fi
+}
+
+test_repo_wide_no_legacy_reads() {
+  local name="AC9: Anti-regression — no script in pipeline/, scripts/, or .claude/scripts/ reads ~/.just-ship/config.json"
+  local repo_root
+  repo_root="$(cd "$SCRIPT_DIR/../.." && pwd)"
+  local hits
+  hits=$(grep -rE 'just-ship/config\.json' \
+    "$repo_root/.claude/scripts/" \
+    "$repo_root/pipeline/" \
+    "$repo_root/scripts/" 2>/dev/null \
+    | grep -vE '(^[^:]*:[[:space:]]*#|^[^:]*:[[:space:]]*//|removed in T-1043|legacy global path .* is gone|no longer reads|test\.sh:)' \
+    || true)
+  if [ -n "$hits" ]; then
+    test_fail "$name" "Found references: $hits"
+  else
+    test_pass "$name"
+  fi
+}
+
+test_no_read_workspace_calls() {
+  local name="AC10: Anti-regression — no script calls write-config.sh read-workspace"
+  local repo_root
+  repo_root="$(cd "$SCRIPT_DIR/../.." && pwd)"
+  local hits
+  hits=$(grep -rE 'write-config\.sh.*read-workspace' \
+    "$repo_root/.claude/scripts/" \
+    "$repo_root/pipeline/" \
+    "$repo_root/scripts/" 2>/dev/null \
+    | grep -vE '(removed in T-1043|read-workspace →|read-workspace.*was removed|test\.sh:)' \
+    || true)
+  if [ -n "$hits" ]; then
+    test_fail "$name" "Found read-workspace callers: $hits"
   else
     test_pass "$name"
   fi
@@ -164,6 +196,8 @@ test_invalid_json_passes_through
 test_empty_pipeline_project_id
 test_no_root_config_introduced
 test_only_post_tickets_affected
+test_repo_wide_no_legacy_reads
+test_no_read_workspace_calls
 
 echo
 echo "=== Test Summary ==="

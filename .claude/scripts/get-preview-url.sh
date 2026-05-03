@@ -44,21 +44,14 @@ if [ "$HOSTING_PROVIDER" = "coolify" ]; then
     } catch (e) {}
   " 2>/dev/null)
 
-  # Token resolution: env var → .env.local → VPS file → ~/.just-ship/config.json
+  # Token resolution: env var → .env.local → VPS shared file
+  # (post-T-1043: no longer reads ~/.just-ship/config.json)
   COOLIFY_TOKEN="${COOLIFY_API_TOKEN:-}"
   if [ -z "$COOLIFY_TOKEN" ] && [ -f .env.local ]; then
     COOLIFY_TOKEN=$(grep '^COOLIFY_API_TOKEN=' .env.local 2>/dev/null | cut -d'=' -f2-)
   fi
   if [ -z "$COOLIFY_TOKEN" ] && [ -f /root/.coolify-api/token ]; then
     COOLIFY_TOKEN=$(cat /root/.coolify-api/token 2>/dev/null)
-  fi
-  if [ -z "$COOLIFY_TOKEN" ] && [ -f "$HOME/.just-ship/config.json" ]; then
-    COOLIFY_TOKEN=$(node -e "
-      try {
-        const c = require(process.env.HOME + '/.just-ship/config.json');
-        process.stdout.write(c.coolify_api_token || '');
-      } catch (e) {}
-    " 2>/dev/null)
   fi
 
   [ -z "$COOLIFY_URL" ] || [ -z "$COOLIFY_APP_UUID" ] || [ -z "$COOLIFY_TOKEN" ] && exit 0

@@ -378,7 +378,7 @@ Central config read by all agents and commands. Auto-populated by `/setup-just-s
 }
 ```
 
-> **Note:** Credentials (API keys, tokens) are never stored in `project.json`. They live in `~/.just-ship/config.json` (CLI path) or in the plugin's `userConfig` (plugin path), both resolved automatically by `board-api.sh`.
+> **Note:** Credentials (API keys, tokens) are never stored in `project.json`. They live in `.env.local` in the project directory (gitignored), or — when running as a Claude Code plugin — in the plugin's `userConfig`. Both paths are resolved automatically by `board-api.sh`. There is no global `~/.just-ship/config.json`; configuration is 100 % project-local.
 
 ### CLAUDE.md
 
@@ -485,7 +485,7 @@ The **[Just Ship Board](https://board.just-ship.io)** is the visual companion fo
 1. Create a workspace and project at [board.just-ship.io](https://board.just-ship.io)
 2. Copy the connect token (`jsp_...`) from the project setup dialog
 3. Run: `just-ship connect "jsp_..."` (CLI) or `/connect-board` (plugin)
-4. This writes `workspace_id` and `project_id` to `project.json` and stores the API key in `~/.just-ship/config.json`
+4. This writes `workspace_id`, `project_id` and `board_url` to `project.json` (committed, no secrets) and the `JSP_BOARD_API_KEY` to `.env.local` in the project directory (gitignored)
 
 Commands (`/ticket`, `/develop`, `/ship`) auto-detect the Board config and use it for ticket operations and status updates.
 

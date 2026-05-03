@@ -99,37 +99,44 @@ EOF
   fi
 }
 
-# Test 2: Token resolution — fallback to config.json
-test_config_fallback() {
-  local name="AC1: Fallback to ~/.just-ship/config.json when env var not set"
+# Test 2: Token resolution — fallback to .env.local (post-T-1043)
+test_env_local_fallback() {
+  local name="AC1: Fallback to .env.local when env var not set"
 
-  cat > "$TEST_HOME/.just-ship/config.json" << 'EOF'
-{"coolify_api_token": "from-config-json"}
+  cat > "$TEST_PROJECT/.env.local" << 'EOF'
+COOLIFY_API_TOKEN=from-env-local
 EOF
 
   unset COOLIFY_API_TOKEN
 
-  cat > "$TEST_HOME/test-token-config.sh" << 'EOF'
+  cat > "$TEST_HOME/test-token-config.sh" << EOF
 #!/bin/bash
-COOLIFY_TOKEN="${COOLIFY_API_TOKEN:-}"
-if [ -z "$COOLIFY_TOKEN" ] && [ -f "$HOME/.just-ship/config.json" ]; then
-  COOLIFY_TOKEN=$(node -e "
-    try {
-      const c = require(process.env.HOME + '/.just-ship/config.json');
-      process.stdout.write(c.coolify_api_token || '');
-    } catch (e) {}
-  " 2>/dev/null)
+cd "$TEST_PROJECT"
+COOLIFY_TOKEN="\${COOLIFY_API_TOKEN:-}"
+if [ -z "\$COOLIFY_TOKEN" ] && [ -f .env.local ]; then
+  COOLIFY_TOKEN=\$(grep '^COOLIFY_API_TOKEN=' .env.local 2>/dev/null | cut -d'=' -f2-)
 fi
-echo "$COOLIFY_TOKEN"
+echo "\$COOLIFY_TOKEN"
 EOF
 
   chmod +x "$TEST_HOME/test-token-config.sh"
   output=$("$TEST_HOME/test-token-config.sh")
 
-  if [ "$output" = "from-config-json" ]; then
+  if [ "$output" = "from-env-local" ]; then
     test_pass "$name"
   else
-    test_fail "$name" "Expected 'from-config-json', got '$output'"
+    test_fail "$name" "Expected 'from-env-local', got '$output'"
+  fi
+}
+
+# Test 2b: Anti-regression — get-preview-url.sh does not read ~/.just-ship/config.json
+test_no_legacy_config_read() {
+  local name="AC1b: Anti-regression — script does not actively read ~/.just-ship/config.json"
+  if grep -E '(cat|require|readFileSync).*just-ship/config\.json' "$SCRIPT" \
+     | grep -v '^[[:space:]]*#' >/dev/null 2>&1; then
+    test_fail "$name" "Active read of ~/.just-ship/config.json detected"
+  else
+    test_pass "$name"
   fi
 }
 
@@ -318,7 +325,8 @@ echo "=== Testing get-preview-url.sh (T-784) ==="
 echo
 
 test_env_var_priority
-test_config_fallback
+test_env_local_fallback
+test_no_legacy_config_read
 test_template_substitution_with_pr
 test_fallback_pr_zero
 test_fallback_empty_template

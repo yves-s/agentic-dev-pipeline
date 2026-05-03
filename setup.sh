@@ -1132,7 +1132,75 @@ if [ "$MODE" = "update" ]; then
       echo ""
       echo "  ⚠  project.json contains api_key (deprecated format)"
       echo "     Führe 'just-ship connect' im Terminal aus um zu migrieren"
-      echo "     to ~/.just-ship/config.json"
+      echo "     to .env.local in current project"
+    fi
+  fi
+
+  # --- T-1043: One-shot migration from ~/.just-ship/config.json to .env.local ---
+  # The legacy global config file holds the JSP API key for one or more
+  # workspaces. We can only safely migrate the entry whose workspace_id
+  # matches this project's pipeline.workspace_id.
+  LEGACY_GLOBAL="$HOME/.just-ship/config.json"
+  if [ -f "$LEGACY_GLOBAL" ] && [ -f "$PROJECT_DIR/project.json" ]; then
+    PROJECT_WS_ID=$(JS_PJ="$PROJECT_DIR/project.json" node -e "
+      try {
+        const c = JSON.parse(require('fs').readFileSync(process.env.JS_PJ,'utf-8'));
+        process.stdout.write(c.pipeline?.workspace_id || '');
+      } catch(e) { process.stdout.write(''); }
+    " 2>/dev/null || echo "")
+
+    if [ -n "$PROJECT_WS_ID" ]; then
+      MIGRATE_PAYLOAD=$(JS_LEGACY="$LEGACY_GLOBAL" JS_WS="$PROJECT_WS_ID" node -e "
+        try {
+          const c = JSON.parse(require('fs').readFileSync(process.env.JS_LEGACY,'utf-8'));
+          const ws = c.workspaces && c.workspaces[process.env.JS_WS];
+          if (!ws || !ws.api_key) { process.stdout.write(''); process.exit(0); }
+          process.stdout.write(JSON.stringify({
+            api_key: ws.api_key,
+            board_url: c.board_url || '',
+          }));
+        } catch(e) { process.stdout.write(''); }
+      " 2>/dev/null || echo "")
+
+      if [ -n "$MIGRATE_PAYLOAD" ]; then
+        ENVFILE="$PROJECT_DIR/.env.local"
+        ALREADY_HAS_KEY="no"
+        if [ -f "$ENVFILE" ] && grep -q '^JSP_BOARD_API_KEY=' "$ENVFILE" 2>/dev/null; then
+          ALREADY_HAS_KEY="yes"
+        fi
+
+        if [ "$ALREADY_HAS_KEY" = "no" ]; then
+          MIGRATED_KEY=$(JS_PAYLOAD="$MIGRATE_PAYLOAD" node -e "process.stdout.write(JSON.parse(process.env.JS_PAYLOAD).api_key)")
+          MIGRATED_URL=$(JS_PAYLOAD="$MIGRATE_PAYLOAD" node -e "process.stdout.write(JSON.parse(process.env.JS_PAYLOAD).board_url)")
+
+          if [ -f "$FRAMEWORK_DIR/scripts/write-config.sh" ]; then
+            bash "$FRAMEWORK_DIR/scripts/write-config.sh" set-key \
+              --name JSP_BOARD_API_KEY --value "$MIGRATED_KEY" \
+              --project-dir "$PROJECT_DIR" >/dev/null 2>&1 || true
+            if [ -n "$MIGRATED_URL" ]; then
+              bash "$FRAMEWORK_DIR/scripts/write-config.sh" set-key \
+                --name JSP_BOARD_API_URL --value "$MIGRATED_URL" \
+                --project-dir "$PROJECT_DIR" >/dev/null 2>&1 || true
+            fi
+            chmod 600 "$ENVFILE" 2>/dev/null || true
+            echo ""
+            echo "  ✓ T-1043 migration: copied JSP credentials from ~/.just-ship/config.json to .env.local"
+          fi
+        fi
+
+        # Once we've migrated (or confirmed .env.local already has a key),
+        # offer to remove the legacy global file so it doesn't keep ghost-loading.
+        if [ -t 0 ] && [ -t 1 ]; then
+          read -p "  Lokale ~/.just-ship/config.json löschen? [Y/n] " yn
+          case "${yn:-Y}" in
+            [Nn]*) echo "  ~/.just-ship/config.json bleibt erhalten (wird vom Code nicht mehr gelesen)." ;;
+            *)     rm -f "$LEGACY_GLOBAL" && echo "  ✓ ~/.just-ship/config.json gelöscht" ;;
+          esac
+        else
+          # Non-interactive: leave the legacy file in place; user can clean up later.
+          echo "  Hinweis: ~/.just-ship/config.json wird vom Just-Ship-Code nicht mehr gelesen. Manuell löschen wenn gewünscht."
+        fi
+      fi
     fi
   fi
 
