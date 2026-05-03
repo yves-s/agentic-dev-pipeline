@@ -17,21 +17,21 @@
 #   the correct project. Pass an explicit `project_id` in the body to override
 #   the default; pass `"project_id": null` for cross-project epics.
 #
-# Credential resolution (4-tier fallback):
-#   Tier 1: PIPELINE_KEY + BOARD_API_URL from environment (Plugin-native)
-#   Tier 2: .env.local in project directory (project-local credentials)
-#   Tier 3: PIPELINE_KEY from env + board_url from project.json → pipeline.board_url
-#   Tier 4: write-config.sh read-workspace (legacy ~/.just-ship/ fallback)
+# Credential resolution (project-local, in order):
+#   Tier 1: JSP_BOARD_API_KEY / JSP_BOARD_API_URL from process env
+#   Tier 2: PIPELINE_KEY / BOARD_API_URL from process env (legacy aliases)
+#   Tier 3: CLAUDE_USER_CONFIG_BOARD_API_* (plugin userConfig)
+#   Tier 4: .env.local in the current directory
+#   Tier 5: project.json → pipeline.board_url (URL only — never the key)
 #
-# Environment variables (auto-resolved if not set):
-#   BOARD_API_URL                      — Board API base URL
-#   PIPELINE_KEY                       — Auth key for Board API
-#   CLAUDE_USER_CONFIG_BOARD_API_KEY   — Plugin userConfig alias for PIPELINE_KEY
-#   CLAUDE_USER_CONFIG_BOARD_API_URL   — Plugin userConfig alias for BOARD_API_URL
+# The legacy ~/.just-ship/config.json fallback was removed in T-1043.
+# Configuration is 100% project-local — secrets in .env.local (gitignored),
+# IDs in project.json (committed). If credentials are missing here, run
+# /connect-board to set them up.
 #
 # Exit codes:
 #   0 — Success (response body on stdout)
-#   1 — Configuration error (no workspace_id, missing credentials)
+#   1 — Configuration error (missing credentials)
 #   2 — API error (curl failed, non-2xx response)
 
 set -euo pipefail
@@ -54,64 +54,44 @@ fi
 METHOD=$(echo "$METHOD" | tr '[:lower:]' '[:upper:]')
 
 # --- Resolve credentials (silently) ---
-SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
-# Tier 0: Map plugin userConfig env vars to expected names
+# Tier 1+2: Process env. Accept JSP_BOARD_API_KEY / _URL (canonical) or
+# PIPELINE_KEY / BOARD_API_URL (legacy aliases used by older scripts).
+: "${PIPELINE_KEY:=${JSP_BOARD_API_KEY:-}}"
+: "${BOARD_API_URL:=${JSP_BOARD_API_URL:-}}"
+
+# Tier 3: Plugin userConfig env vars
 : "${PIPELINE_KEY:=${CLAUDE_USER_CONFIG_BOARD_API_KEY:-}}"
 : "${BOARD_API_URL:=${CLAUDE_USER_CONFIG_BOARD_API_URL:-}}"
 
-# Tier 1: Both from environment — fully plugin-native, no file I/O
-if [ -n "${PIPELINE_KEY:-}" ] && [ -n "${BOARD_API_URL:-}" ]; then
-  : # Credentials resolved from environment
-else
-  # Tier 2: Read from .env.local (project-local credentials)
-  if [ -z "${PIPELINE_KEY:-}" ] || [ -z "${BOARD_API_URL:-}" ]; then
-    if [ -f ".env.local" ]; then
-      local_key=$(grep '^JSP_BOARD_API_KEY=' .env.local 2>/dev/null | cut -d= -f2- || true)
-      local_url=$(grep '^JSP_BOARD_API_URL=' .env.local 2>/dev/null | cut -d= -f2- || true)
-      : "${PIPELINE_KEY:=${local_key:-}}"
-      : "${BOARD_API_URL:=${local_url:-}}"
-    fi
+# Tier 4: .env.local in the current project directory
+if [ -z "${PIPELINE_KEY:-}" ] || [ -z "${BOARD_API_URL:-}" ]; then
+  if [ -f ".env.local" ]; then
+    local_key=$(grep '^JSP_BOARD_API_KEY=' .env.local 2>/dev/null | cut -d= -f2- || true)
+    local_url=$(grep '^JSP_BOARD_API_URL=' .env.local 2>/dev/null | cut -d= -f2- || true)
+    : "${PIPELINE_KEY:=${local_key:-}}"
+    : "${BOARD_API_URL:=${local_url:-}}"
   fi
+fi
 
-  # Tier 3: Key from env + board_url from project.json
-  if [ -n "${PIPELINE_KEY:-}" ] && [ -z "${BOARD_API_URL:-}" ]; then
-    BOARD_API_URL=$(node -e "
-      try { const p = require('./project.json'); process.stdout.write(p.pipeline?.board_url || ''); }
-      catch(e) { process.stdout.write(''); }
-    " 2>/dev/null) || BOARD_API_URL=""
-  fi
+# Tier 5: project.json → pipeline.board_url (URL only; never a key source)
+if [ -z "${BOARD_API_URL:-}" ] && [ -f "project.json" ]; then
+  BOARD_API_URL=$(node -e "
+    try { const p = require('./project.json'); process.stdout.write(p.pipeline?.board_url || ''); }
+    catch(e) { process.stdout.write(''); }
+  " 2>/dev/null) || BOARD_API_URL=""
+fi
 
-  # Tier 4: Legacy fallback via write-config.sh
-  if [ -z "${PIPELINE_KEY:-}" ] || [ -z "${BOARD_API_URL:-}" ]; then
-    WORKSPACE_ID=$(node -e "
-      try { const p = require('./project.json'); process.stdout.write(p.pipeline?.workspace_id || ''); }
-      catch(e) { process.stdout.write(''); }
-    " 2>/dev/null) || WORKSPACE_ID=""
+if [ -z "${PIPELINE_KEY:-}" ]; then
+  exec 2>&3
+  echo '{"error": "missing_api_key", "message": "Missing JSP_BOARD_API_KEY in .env.local — run /connect-board to set up."}' >&2
+  exit 1
+fi
 
-    if [ -z "$WORKSPACE_ID" ]; then
-      exec 2>&3
-      echo '{"error": "no_pipeline_config", "message": "pipeline.workspace_id not set in project.json"}' >&2
-      exit 1
-    fi
-
-    WS_JSON=$("$SCRIPT_DIR/write-config.sh" read-workspace --id "$WORKSPACE_ID" 2>/dev/null) || WS_JSON=""
-
-    if [ -z "$WS_JSON" ]; then
-      exec 2>&3
-      echo '{"error": "credentials_not_found", "message": "Could not resolve workspace credentials"}' >&2
-      exit 1
-    fi
-
-    : "${BOARD_API_URL:=$(echo "$WS_JSON" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).board_url || '')" 2>/dev/null)}"
-    : "${PIPELINE_KEY:=$(echo "$WS_JSON" | node -e "process.stdout.write(JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8')).api_key || '')" 2>/dev/null)}"
-  fi
-
-  if [ -z "${BOARD_API_URL:-}" ] || [ -z "${PIPELINE_KEY:-}" ]; then
-    exec 2>&3
-    echo '{"error": "incomplete_credentials", "message": "board_url or api_key missing — set PIPELINE_KEY + BOARD_API_URL env vars, add to .env.local, or configure ~/.just-ship/"}' >&2
-    exit 1
-  fi
+if [ -z "${BOARD_API_URL:-}" ]; then
+  exec 2>&3
+  echo '{"error": "missing_board_url", "message": "Missing JSP_BOARD_API_URL — set it in .env.local or pipeline.board_url in project.json."}' >&2
+  exit 1
 fi
 
 exec 2>&3  # Restore stderr for curl errors

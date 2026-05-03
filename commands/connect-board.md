@@ -68,10 +68,10 @@ Gibt das Terminal-Feedback der Standardausgabe weiter.
 
 ### 2. Kein Token-Argument — Status prüfen
 
-Lies `project.json` und prüfe `pipeline.workspace_id`. Falls gesetzt, validiere die vollständige Verbindung:
+Lies `project.json` und prüfe `pipeline.workspace_id`. Lies `.env.local` und prüfe ob `JSP_BOARD_API_KEY` gesetzt ist:
 
 ```bash
-bash .claude/scripts/write-config.sh read-workspace --id <workspace_id>
+grep '^JSP_BOARD_API_KEY=' .env.local 2>/dev/null | cut -d= -f2-
 ```
 
 **Prüfe zusätzlich Plugin-Credentials:**
@@ -81,9 +81,9 @@ Falls `CLAUDE_USER_CONFIG_BOARD_API_KEY` gesetzt ist, gilt das als "Plugin-Crede
 
 | `project.json` | Credentials | Status |
 |---|---|---|
-| `workspace_id` + `project_id` gesetzt | `api_key` vorhanden (config oder Plugin-Env) | **Voll verbunden** |
-| `workspace_id` gesetzt, `project_id` fehlt | `api_key` vorhanden | **Workspace verbunden, Projekt fehlt** |
-| `workspace_id` gesetzt | `api_key` leer oder read-workspace schlägt fehl | **Credentials fehlen** |
+| `workspace_id` + `project_id` gesetzt | `JSP_BOARD_API_KEY` in `.env.local` ODER `CLAUDE_USER_CONFIG_BOARD_API_KEY` gesetzt | **Voll verbunden** |
+| `workspace_id` gesetzt, `project_id` fehlt | Key vorhanden | **Workspace verbunden, Projekt fehlt** |
+| `workspace_id` gesetzt | Kein Key in `.env.local` und kein Plugin-Env | **Credentials fehlen** |
 | — | `CLAUDE_USER_CONFIG_BOARD_API_KEY` gesetzt | **Plugin-Credentials konfiguriert** |
 | `workspace_id` nicht gesetzt | — | **Nicht verbunden** |
 
@@ -103,7 +103,7 @@ Führe 'just-ship connect' im Terminal aus um ein Projekt auszuwählen.
 ```
 ⚠ Workspace in project.json gesetzt, aber API-Key fehlt in .env.local.
 
-Führe 'just-ship connect' mit einem neuen Code im Terminal aus — der Befehl schreibt JSP_BOARD_API_KEY in .env.local (gitignored, chmod 600). Falls du noch eine alte Installation hast, die ~/.just-ship/config.json nutzt: das funktioniert weiter als Legacy-Fallback.
+Führe 'just-ship connect' mit einem neuen Code im Terminal aus — der Befehl schreibt JSP_BOARD_API_KEY in .env.local (gitignored, chmod 600). Konfiguration ist projekt-lokal; einen globalen ~/.just-ship/-Pfad gibt es nicht mehr.
 ```
 
 **Plugin-Credentials konfiguriert (kein project.json):**
@@ -130,7 +130,7 @@ Das ist alles. Keine weiteren Erklärungen, keine Schritte. Das Board hat einen 
 Prüfe ob die Verbindung eingerichtet wurde:
 
 ```bash
-bash .claude/scripts/write-config.sh read-workspace --id <workspace_id> 2>/dev/null || echo "NOT_CONNECTED"
+[ -f .env.local ] && grep -q '^JSP_BOARD_API_KEY=' .env.local && echo "CONNECTED" || echo "NOT_CONNECTED"
 ```
 
 **Falls verbunden:** Prüfe ob `project.json` den Workspace hat. Falls nicht, setze ihn:

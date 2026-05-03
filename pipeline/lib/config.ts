@@ -1,6 +1,5 @@
 import { readFileSync, existsSync } from "node:fs";
-import { resolve, join } from "node:path";
-import { homedir } from "node:os";
+import { resolve } from "node:path";
 import { logger } from "./logger.ts";
 import type { ModelRoutingConfig } from "./model-router.ts";
 
@@ -63,38 +62,52 @@ export interface TicketArgs {
   labels: string;
 }
 
-interface WorkspaceEntry {
-  slug?: string;
-  api_key?: string;
-}
-
-interface GlobalConfig {
-  board_url?: string;
-  workspaces: Record<string, WorkspaceEntry>;
-  default_workspace: string | null;
-}
-
-function loadGlobalConfig(): GlobalConfig | null {
-  const configPath = join(homedir(), ".just-ship", "config.json");
-  if (!existsSync(configPath)) return null;
+/**
+ * Read .env.local from the project directory and parse it for credentials.
+ * Returns an empty object if the file doesn't exist or can't be parsed.
+ *
+ * Format: KEY=VALUE per line. Comments (#…) and blank lines are skipped.
+ * Values are taken verbatim — no shell expansion, no quote stripping
+ * beyond a single matching pair of double or single quotes.
+ */
+function loadEnvLocal(projectDir: string): Record<string, string> {
+  const envPath = resolve(projectDir, ".env.local");
+  if (!existsSync(envPath)) return {};
   try {
-    return JSON.parse(readFileSync(configPath, "utf-8"));
+    const raw = readFileSync(envPath, "utf-8");
+    const out: Record<string, string> = {};
+    for (const rawLine of raw.split(/\r?\n/)) {
+      const line = rawLine.trim();
+      if (!line || line.startsWith("#")) continue;
+      const eq = line.indexOf("=");
+      if (eq < 1) continue;
+      const key = line.slice(0, eq).trim();
+      let value = line.slice(eq + 1).trim();
+      if (
+        (value.startsWith('"') && value.endsWith('"')) ||
+        (value.startsWith("'") && value.endsWith("'"))
+      ) {
+        value = value.slice(1, -1);
+      }
+      out[key] = value;
+    }
+    return out;
   } catch {
-    logger.warn("Could not parse ~/.just-ship/config.json — continuing without global config");
-    return null;
+    logger.warn({ envPath }, "Could not parse .env.local — continuing without it");
+    return {};
   }
 }
 
 function buildPipelineConfig(
   rawPipeline: Record<string, unknown>,
-  globalConfig?: GlobalConfig | null,
-  ws?: WorkspaceEntry,
+  apiUrl: string,
+  apiKey: string,
 ): PipelineConfig {
   return {
     projectId:   (rawPipeline.project_id as string) ?? "",
     workspaceId: (rawPipeline.workspace_id as string) ?? "",
-    apiUrl:      globalConfig?.board_url ?? "",
-    apiKey:      ws?.api_key ?? "",
+    apiUrl,
+    apiKey,
   };
 }
 
@@ -106,7 +119,7 @@ export function loadProjectConfig(projectDir: string): ProjectConfig {
       name: "project",
       description: "",
       conventions: { branch_prefix: "feature/" },
-      pipeline: { ...buildPipelineConfig({}), skipAgents: [], timeouts: undefined },
+      pipeline: { ...buildPipelineConfig({}, "", ""), skipAgents: [], timeouts: undefined },
       maxWorkers: 1,
       qa: {
         maxFixIterations: 3,
@@ -127,85 +140,66 @@ export function loadProjectConfig(projectDir: string): ProjectConfig {
   }
   const raw = JSON.parse(readFileSync(configPath, "utf-8"));
 
-  // --- Pipeline config resolution ---
-  let pipeline: PipelineConfig;
+  // --- Pipeline config resolution (project-local only) ---
+  //
+  // Sources, in priority order:
+  //   1. Process env (JSP_BOARD_API_KEY / JSP_BOARD_API_URL — set by VPS,
+  //      CI, or by the developer's shell)
+  //   2. Plugin userConfig env (CLAUDE_USER_CONFIG_BOARD_API_KEY / _URL)
+  //   3. .env.local in the project directory (gitignored, written by
+  //      `connect-board` / `write-config.sh connect`)
+  //   4. project.json → pipeline.board_url (URL only — NOT a key source)
+  //   5. SERVER_CONFIG_PATH → multi-project VPS deployments (legitimate
+  //      shared-credential location, owned by ops, not the user's $HOME)
+  //
+  // The legacy ~/.just-ship/config.json path is fully removed. If the API
+  // key is missing here, the pipeline cannot make Board API calls — but
+  // that's a setup problem the user has to fix via `connect-board`, not
+  // something this loader can paper over.
   const rawPipeline = raw.pipeline ?? {};
+  const env = loadEnvLocal(projectDir);
 
-  // Hoist: load global config once for all branches
-  const globalConfig = loadGlobalConfig();
+  let apiKey =
+    process.env.JSP_BOARD_API_KEY ||
+    process.env.PIPELINE_KEY ||
+    process.env.CLAUDE_USER_CONFIG_BOARD_API_KEY ||
+    env.JSP_BOARD_API_KEY ||
+    "";
 
-  if (rawPipeline.api_key) {
-    // Old format: credentials in project.json
-    logger.warn(
-      "api_key in project.json is deprecated. " +
-      "Run 'just-ship connect' or '.claude/scripts/write-config.sh migrate' to upgrade."
-    );
-    pipeline = buildPipelineConfig(rawPipeline, globalConfig);
-    if (!pipeline.apiUrl) pipeline.apiUrl = (rawPipeline.api_url as string) ?? "";
-    if (!pipeline.apiKey) pipeline.apiKey = (rawPipeline.api_key as string) ?? "";
+  let apiUrl =
+    process.env.JSP_BOARD_API_URL ||
+    process.env.BOARD_API_URL ||
+    process.env.CLAUDE_USER_CONFIG_BOARD_API_URL ||
+    env.JSP_BOARD_API_URL ||
+    (rawPipeline.board_url as string | undefined) ||
+    "";
 
-  } else if (rawPipeline.workspace_id) {
-    // New format: UUID-based lookup
-    const wsId = rawPipeline.workspace_id as string;
-    if (!globalConfig) {
-      // In multi-project mode (VPS), credentials come from server-config.json, not ~/.just-ship/config.json
-      if (process.env.SERVER_CONFIG_PATH) {
-        // Read board_url and api_key from server-config.json
-        const serverConfigPath = process.env.SERVER_CONFIG_PATH;
-        try {
-          const serverConfig = JSON.parse(readFileSync(serverConfigPath, "utf-8"));
-          const boardUrl = serverConfig?.workspace?.board_url ?? "";
-          const apiKey = serverConfig?.workspace?.api_key ?? "";
-          pipeline = {
-            projectId: (rawPipeline.project_id as string) ?? "",
-            workspaceId: wsId,
-            apiUrl: boardUrl,
-            apiKey: apiKey,
-          };
-        } catch {
-          logger.warn({ serverConfigPath }, "Could not read server-config.json");
-          pipeline = buildPipelineConfig(rawPipeline, null);
-        }
-      } else {
-        logger.warn(
-          { workspaceId: wsId },
-          "workspace_id configured but ~/.just-ship/config.json not found. Run 'just-ship connect' to set up the connection."
-        );
-        pipeline = buildPipelineConfig(rawPipeline, null);
-      }
-    } else {
-      const ws = globalConfig.workspaces[wsId];
-      if (!ws) {
-        logger.error(
-          { workspaceId: wsId },
-          "Workspace not found in ~/.just-ship/config.json. Run 'just-ship connect' to set up the connection."
-        );
-        pipeline = buildPipelineConfig(rawPipeline, globalConfig);
-      } else {
-        pipeline = buildPipelineConfig(rawPipeline, globalConfig, ws);
-      }
+  // VPS multi-project mode — server-config.json holds shared credentials
+  // (owned by ops, not the developer). This is independent of the
+  // project-local credential split documented above.
+  if ((!apiKey || !apiUrl) && process.env.SERVER_CONFIG_PATH) {
+    try {
+      const serverConfigPath = process.env.SERVER_CONFIG_PATH;
+      const serverConfig = JSON.parse(readFileSync(serverConfigPath, "utf-8"));
+      apiUrl = apiUrl || (serverConfig?.workspace?.board_url ?? "");
+      apiKey = apiKey || (serverConfig?.workspace?.api_key ?? "");
+    } catch {
+      logger.warn(
+        { serverConfigPath: process.env.SERVER_CONFIG_PATH },
+        "Could not read SERVER_CONFIG_PATH",
+      );
     }
-
-  } else if (rawPipeline.workspace) {
-    // Intermediate format: slug-based (deprecated)
-    logger.warn(
-      "pipeline.workspace (slug) is deprecated. Run '.claude/scripts/write-config.sh migrate' to upgrade."
-    );
-    const slug = rawPipeline.workspace as string;
-    let ws: WorkspaceEntry | undefined;
-    if (globalConfig) {
-      for (const [, entry] of Object.entries(globalConfig.workspaces)) {
-        if (entry.slug === slug) { ws = entry; break; }
-      }
-    }
-    pipeline = buildPipelineConfig(rawPipeline, globalConfig, ws);
-
-  } else {
-    // No pipeline config — check for default workspace
-    const defaultId = globalConfig?.default_workspace;
-    const defaultWs = defaultId ? globalConfig?.workspaces[defaultId] : undefined;
-    pipeline = buildPipelineConfig(rawPipeline, globalConfig, defaultWs);
   }
+
+  if (rawPipeline.workspace_id && !apiKey) {
+    logger.warn(
+      { workspaceId: rawPipeline.workspace_id },
+      "workspace_id is set but no JSP_BOARD_API_KEY found. " +
+      "Set it in .env.local — run /connect-board to provision.",
+    );
+  }
+
+  const pipeline: PipelineConfig = buildPipelineConfig(rawPipeline, apiUrl, apiKey);
 
   const rawQa = rawPipeline.qa ?? {};
 

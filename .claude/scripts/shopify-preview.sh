@@ -40,25 +40,16 @@ if [ -z "$STORE" ]; then
 fi
 
 # --- Resolve credentials ---
-# Priority: 1) SHOPIFY_CLI_THEME_TOKEN env, 2) config.json shopify_password, 3) CLI session
+# Priority: 1) SHOPIFY_CLI_THEME_TOKEN env, 2) .env.local SHOPIFY_CLI_THEME_TOKEN /
+#           SHOPIFY_PASSWORD, 3) CLI session (handled by `shopify` itself)
 PASSWORD_FLAG=""
 
 if [ -n "${SHOPIFY_CLI_THEME_TOKEN:-}" ]; then
   PASSWORD_FLAG="--password ${SHOPIFY_CLI_THEME_TOKEN}"
-else
-  # Try to read from ~/.just-ship/config.json via workspace
-  WS_ID=$(node -e "process.stdout.write(require('./project.json').pipeline?.workspace_id || '')" 2>/dev/null || echo "")
-  if [ -n "$WS_ID" ]; then
-    SHOPIFY_PW=$(bash .claude/scripts/write-config.sh read-workspace --id "$WS_ID" 2>/dev/null | \
-      node -e "
-        try {
-          const d = JSON.parse(require('fs').readFileSync('/dev/stdin','utf-8'));
-          process.stdout.write(d.shopify_password || '');
-        } catch(e) { process.stdout.write(''); }
-      " 2>/dev/null || echo "")
-    if [ -n "$SHOPIFY_PW" ]; then
-      PASSWORD_FLAG="--password ${SHOPIFY_PW}"
-    fi
+elif [ -f .env.local ]; then
+  SHOPIFY_PW=$(grep -E '^(SHOPIFY_CLI_THEME_TOKEN|SHOPIFY_PASSWORD|SHOPIFY_STORE_PASSWORD)=' .env.local 2>/dev/null | head -n1 | cut -d'=' -f2-)
+  if [ -n "$SHOPIFY_PW" ]; then
+    PASSWORD_FLAG="--password ${SHOPIFY_PW}"
   fi
 fi
 
