@@ -1,13 +1,15 @@
 #!/usr/bin/env bash
-# Smoke tests for .githooks/pre-commit — the installed-copy edit blocker.
+# Smoke tests for .githooks/pre-commit — applies_to: frontmatter validation.
 #
-# Creates isolated temporary git repos to exercise each branch of the hook:
-#   1. Self-install repo + blocked path           → commit rejected
-#   2. Self-install repo + allowed path           → commit accepted
-#   3. Customer project (only .pipeline/ exists)  → hook no-op, commit accepted
-#   4. Framework-only repo (only pipeline/)       → hook no-op, commit accepted
-#   5. Self-install repo + override env var       → commit accepted
-#   6. Self-install repo + delete-only diff       → commit accepted (deletions OK)
+# The legacy installed-copy edit blocker (Gate 1) is gone since T-1064 — the
+# engine repo no longer maintains a `.pipeline/` install copy, so the
+# Source/Install duplication that gate protected against cannot occur.
+#
+# These scenarios exercise the remaining `applies_to:` frontmatter check:
+#   1. Artifact with applies_to: frontmatter         → commit accepted
+#   2. Artifact missing applies_to: frontmatter      → commit rejected
+#   3. Override env var bypasses the check           → commit accepted
+#   4. Non-artifact file (no applies_to: required)   → commit accepted
 #
 # Run: bash .claude/scripts/githook-pre-commit.test.sh
 # Exits 0 on all-green, non-zero on first failure.
@@ -40,12 +42,11 @@ fail() {
   echo "  ✗ $1"
 }
 
-# Create a minimal git repo with the given topology.
-#   $1 = scenario: "self-install" | "customer" | "framework-only"
-#   $2 = target dir
+# Create a minimal git repo with a baseline artifact tree. The hook will
+# validate any addition or modification under `.claude/{rules,skills,agents}/`,
+# `skills/<name>/SKILL.md`, `agents/`, or `rules/`.
 setup_repo() {
-  local scenario=$1
-  local dir=$2
+  local dir=$1
 
   mkdir -p "$dir"
   (cd "$dir" && git init -q && git config user.email "test@test" && git config user.name "test")
@@ -56,60 +57,40 @@ setup_repo() {
   chmod +x "$dir/.githooks/pre-commit"
   (cd "$dir" && git config core.hooksPath .githooks)
 
-  case "$scenario" in
-    self-install)
-      mkdir -p "$dir/pipeline" "$dir/.pipeline/lib" "$dir/.claude"
-      echo '{"name":"src"}'        > "$dir/pipeline/package.json"
-      echo '{"name":"installed"}'  > "$dir/.pipeline/package.json"
-      echo 'export const x = 1;'   > "$dir/pipeline/run.ts"
-      echo 'export const x = 1;'   > "$dir/.pipeline/run.ts"
-      echo 'export const y = 1;'   > "$dir/.pipeline/lib/load-skills.ts"
-      echo 'abc123 (2026-01-01)'   > "$dir/.claude/.pipeline-version"
-      echo 'hash_value'            > "$dir/.claude/.template-hash"
-      ;;
-    customer)
-      # Only .pipeline/ — no pipeline/ source. This is a customer project.
-      mkdir -p "$dir/.pipeline/lib" "$dir/.claude"
-      echo '{"name":"installed"}'  > "$dir/.pipeline/package.json"
-      echo 'export const x = 1;'   > "$dir/.pipeline/run.ts"
-      echo 'abc123 (2026-01-01)'   > "$dir/.claude/.pipeline-version"
-      ;;
-    framework-only)
-      # Only pipeline/ — fresh clone before `setup.sh` has run yet.
-      mkdir -p "$dir/pipeline"
-      echo '{"name":"src"}' > "$dir/pipeline/package.json"
-      echo 'export const x = 1;' > "$dir/pipeline/run.ts"
-      ;;
-  esac
+  # Seed an initial commit with one valid artifact and one normal file.
+  mkdir -p "$dir/.claude/rules" "$dir/src"
+  cat > "$dir/.claude/rules/seed.md" <<'EOF'
+---
+applies_to: top-level-only
+---
 
-  # Seed an initial commit so subsequent commits have a parent.
+Seed rule for test setup.
+EOF
+  echo 'export const x = 1;' > "$dir/src/index.ts"
   (cd "$dir" && git add -A && GIT_ALLOW_INSTALLED_EDIT=1 git commit -q -m "initial" 2>/dev/null)
 }
 
-# Run a test scenario and report pass/fail based on expected exit code.
+# Run a commit test against a freshly-staged file.
 #   $1 = human label
 #   $2 = repo dir
-#   $3 = file to modify (relative to repo root)
-#   $4 = "block" | "allow"  — expected outcome
-#   $5 = (optional) env var assignments to prefix the commit with
+#   $3 = relative file path to create/modify
+#   $4 = file content
+#   $5 = "block" | "allow"  — expected outcome
+#   $6 = (optional) env var prefix
 run_commit_test() {
   local label=$1
   local dir=$2
   local file=$3
-  local expected=$4
-  local env_prefix=${5:-}
+  local content=$4
+  local expected=$5
+  local env_prefix=${6:-}
 
-  # Make a change.
-  echo "change $(date +%s%N)" >> "$dir/$file"
-  (cd "$dir" && git add "$file")
+  mkdir -p "$(dirname "$dir/$file")"
+  printf '%s' "$content" > "$dir/$file"
+  (cd "$dir" && git add -- "$file")
 
   local rc
   if [ -n "$env_prefix" ]; then
-    # `env_prefix` is a string like "GIT_ALLOW_INSTALLED_EDIT=1". Pass it via
-    # `env` so the variable reaches the git process inside the subshell —
-    # `(cd … && $env_prefix git …)` would interpret the prefix as a command
-    # only when bash word-splits it before subshell entry, which is fragile.
-    # `env <ASSIGNMENT> command` is the portable way.
     # shellcheck disable=SC2086
     (cd "$dir" && env $env_prefix git commit -q -m "test commit" >/dev/null 2>&1)
     rc=$?
@@ -122,26 +103,13 @@ run_commit_test() {
     block)
       if [ $rc -ne 0 ]; then pass "$label"; else fail "$label (expected block, got pass)"; fi
       # Clean up the staged change so subsequent tests start clean.
-      (cd "$dir" && git checkout -q -- "$file" 2>/dev/null; git reset -q HEAD "$file" 2>/dev/null || true)
+      (cd "$dir" && git reset -q HEAD -- "$file" 2>/dev/null || true)
+      rm -f "$dir/$file"
       ;;
     allow)
       if [ $rc -eq 0 ]; then pass "$label"; else fail "$label (expected pass, got block)"; fi
       ;;
   esac
-}
-
-# Test deletion of an installed-copy file — a deletion of an installed-copy
-# file is a special case: `git rm .pipeline/foo.ts` is allowed because
-# `diff-filter=ACMR` excludes `D`. This lets us remove obsolete installed
-# files before a setup.sh run regenerates them.
-run_delete_test() {
-  local dir=$1
-  local file=$2
-
-  (cd "$dir" && git rm -q "$file")
-  (cd "$dir" && git commit -q -m "delete test" >/dev/null 2>&1)
-  local rc=$?
-  if [ $rc -eq 0 ]; then pass "delete of $file is allowed"; else fail "delete of $file rejected (should have passed)"; fi
 }
 
 # ---------- Execute scenarios ----------
@@ -150,51 +118,61 @@ TMP=$(mktemp -d)
 trap 'rm -rf "$TMP"' EXIT
 
 echo ""
-echo "Scenario 1: self-install repo (pipeline/ + .pipeline/)"
-setup_repo self-install "$TMP/self"
-run_commit_test "blocks .pipeline/run.ts edit"           "$TMP/self" ".pipeline/run.ts"          block
-run_commit_test "blocks .pipeline/lib/load-skills.ts"    "$TMP/self" ".pipeline/lib/load-skills.ts" block
-run_commit_test "blocks .claude/.pipeline-version"       "$TMP/self" ".claude/.pipeline-version" block
-run_commit_test "blocks .claude/.template-hash"          "$TMP/self" ".claude/.template-hash"    block
-run_commit_test "allows pipeline/run.ts (source edit)"   "$TMP/self" "pipeline/run.ts"           allow
-
-# Override env var
-setup_repo self-install "$TMP/self2"
-run_commit_test "GIT_ALLOW_INSTALLED_EDIT=1 bypasses block" "$TMP/self2" ".pipeline/run.ts" allow "GIT_ALLOW_INSTALLED_EDIT=1"
-
-# Deletion of installed-copy file
-setup_repo self-install "$TMP/self3"
-run_delete_test "$TMP/self3" ".pipeline/lib/load-skills.ts"
-
-# Regression: filenames with shell-special characters must NOT bypass the
-# block. `git diff --cached --name-only` (without `-z`) C-quotes such names
-# (`.pipeline/weird"name.ts` → `".pipeline/weird\"name.ts"`), which used to
-# cause the prefix `case` match to miss. The hook now uses `-z` to read raw
-# bytes; this test guards that fix.
-setup_repo self-install "$TMP/self4"
-SPECIAL_FILE='.pipeline/weird"name.ts'
-echo "content" > "$TMP/self4/$SPECIAL_FILE"
-(cd "$TMP/self4" && git add -- "$SPECIAL_FILE")
-(cd "$TMP/self4" && git commit -q -m "test commit" >/dev/null 2>&1)
-rc=$?
-if [ $rc -ne 0 ]; then
-  pass "blocks .pipeline/ file with quote in name (no C-quote bypass)"
-else
-  fail "FAIL: .pipeline/ file with quote in name slipped through"
-  (cd "$TMP/self4" && git reset -q --hard HEAD^ 2>/dev/null || true)
-fi
+echo "Scenario 1: artifact with applies_to: frontmatter"
+setup_repo "$TMP/valid"
+run_commit_test \
+  "rule with applies_to: is allowed" \
+  "$TMP/valid" \
+  ".claude/rules/new-rule.md" \
+  "$(printf -- '---\napplies_to: top-level-only\n---\n\nNew rule body.\n')" \
+  allow
 
 echo ""
-echo "Scenario 2: customer project (only .pipeline/, no pipeline/)"
-setup_repo customer "$TMP/customer"
-run_commit_test ".pipeline/run.ts edit is allowed (no self-install signature)" "$TMP/customer" ".pipeline/run.ts" allow
+echo "Scenario 2: artifact missing applies_to: frontmatter"
+setup_repo "$TMP/missing-rule"
+run_commit_test \
+  "rule without applies_to: is blocked" \
+  "$TMP/missing-rule" \
+  ".claude/rules/bad-rule.md" \
+  "Rule body without frontmatter." \
+  block
+
+setup_repo "$TMP/missing-skill"
+run_commit_test \
+  "skill without applies_to: is blocked" \
+  "$TMP/missing-skill" \
+  ".claude/skills/bad-skill.md" \
+  "Skill body without frontmatter." \
+  block
+
+setup_repo "$TMP/missing-agent"
+run_commit_test \
+  "agent without applies_to: is blocked" \
+  "$TMP/missing-agent" \
+  ".claude/agents/bad-agent.md" \
+  "Agent body without frontmatter." \
+  block
 
 echo ""
-echo "Scenario 3: framework-only repo (only pipeline/, no .pipeline/ yet)"
-setup_repo framework-only "$TMP/fresh"
-# In a fresh framework clone (before setup.sh has run here), .pipeline/ does
-# not exist yet, so the self-install signature doesn't match — hook no-ops.
-run_commit_test "pipeline/run.ts edit is allowed (no installed copy yet)" "$TMP/fresh" "pipeline/run.ts" allow
+echo "Scenario 3: override env var bypasses the check"
+setup_repo "$TMP/override"
+run_commit_test \
+  "GIT_ALLOW_INSTALLED_EDIT=1 bypasses missing applies_to: check" \
+  "$TMP/override" \
+  ".claude/rules/forced-rule.md" \
+  "No frontmatter here." \
+  allow \
+  "GIT_ALLOW_INSTALLED_EDIT=1"
+
+echo ""
+echo "Scenario 4: non-artifact file (no applies_to: required)"
+setup_repo "$TMP/nonart"
+run_commit_test \
+  "src/foo.ts edit is allowed" \
+  "$TMP/nonart" \
+  "src/foo.ts" \
+  "export const y = 2;" \
+  allow
 
 echo ""
 echo "Summary: $PASSED/$TESTS_RUN passed"
@@ -202,4 +180,3 @@ if [ $FAILED -ne 0 ]; then
   echo "FAILED: $FAILED test(s)"
   exit 1
 fi
-echo "All green."

@@ -1,5 +1,11 @@
 # Changelog
 
+## [T-1064] Refactor: .pipeline/ aus Engine-Repo entfernen — Self-Install hier abschaffen — 2026-05-04
+
+**Bereiche:** Pipeline, Shared, CI, Docs
+
+Das Engine-Repo unterhält keine installierte `.pipeline/`-Kopie mehr — der Pipeline-Source unter `pipeline/` wird hier direkt benutzt, ohne Self-Install-Schritt. Damit entfällt eine ganze Klasse von Drift-Bugs (T-989, T-1060, T-1062), die nur durch die Source-vs-Install-Duplikation im selben Repo möglich waren. Konsumer-Repos bleiben unverändert: `setup.sh` kopiert `pipeline/` weiter nach `.pipeline/`. `setup.sh` skippt im Engine-Repo (erkannt am `_SELF_INSTALL=1`) den `.pipeline/`-Bootstrap, das Schreiben der `.claude/.pipeline-version`/`.claude/.template-hash`-Stempel und den Pipeline-Diff-Check. `pipeline/run.sh` ist auf einen einfachen Wrapper zurückgebaut, der Drift-Check (T-1062) ist gelöscht — der Schutz wird im Engine-Repo nicht mehr gebraucht und in Konsumer-Repos durch die fehlende `pipeline/`-Source ohnehin nie aktiv. Der Pre-Commit-Hook hat seine Gate 1 (`.pipeline/`-Edit-Block, T-988) verloren; die Self-Install-Signatur (`pipeline/` UND `.pipeline/` parallel) konnte nach diesem Refactor nirgendwo mehr greifen. Gate 2 (`applies_to:`-Frontmatter-Validation, T-1021) bleibt aktiv. Die CI-Drift-Check-Workflow-Datei `.github/workflows/setup-drift-check.yml` prüft `.pipeline/`, `.claude/.pipeline-version`, `.claude/.template-hash` nicht mehr. Die Rules `self-install-topology.md` und `framework-version-check.md` sind auf `customer-projects-only` umgewidmet. Tests: 816/816 Vitest grün, TypeScript-Typecheck clean, neuer Pre-Commit-Hook-Smoke-Test (Gate 2) 6/6 grün.
+
 ## [T-1063] .active-ticket worktree-aware sync — Subagent-Telemetrie kommt am Board an — 2026-05-03
 
 **Bereiche:** Pipeline, Shared

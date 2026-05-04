@@ -21,9 +21,12 @@
 #   .claude/scripts/*         Utility scripts (for skills)
 #   .claude/hooks/*           Event streaming hooks (SessionStart, SubagentStart/Stop, SessionEnd)
 #   .claude/settings.json     Permissions + hook configuration
-#   .pipeline/*               Pipeline runner (TypeScript SDK)
-#   .claude/.pipeline-version Version tracking
-#   .claude/.template-hash    Template change detection
+#   .pipeline/*               Pipeline runner (TypeScript SDK) — consumer repos only
+#   .claude/.pipeline-version Version tracking — consumer repos only
+#   .claude/.template-hash    Template change detection — consumer repos only
+#
+# In the engine repo itself, the .pipeline/ self-install is skipped (T-1064).
+# The engine repo uses pipeline/ source directly; there is no installed copy.
 #
 # Project files (NEVER overwritten):
 #   CLAUDE.md                 Project-specific instructions
@@ -539,11 +542,11 @@ enable_agent_teams() {
 # --- just-ship repo (the repo that has both `pipeline/` source AND        ---
 # --- `.pipeline/` installation). No-op elsewhere.                         ---
 #
-# The pre-commit hook in .githooks/ blocks edits to installed-copy paths
-# (.pipeline/**, .claude/.pipeline-version, .claude/.template-hash) so a
-# future `git stash pop` mess like T-989 cannot recur. In customer projects
-# (only .pipeline/, no pipeline/ source), the hook is a no-op — so we don't
-# install it there. The self-install signature is both files existing.
+# The pre-commit hook in .githooks/ enforces the `applies_to:` frontmatter
+# rule (Gate 2). The legacy `.pipeline/`-edit Gate 1 is gone since T-1064 —
+# the engine repo no longer maintains an installed `.pipeline/` copy, so
+# the Source/Install duplication that Gate 1 protected against cannot occur.
+# We still install the hook in the engine repo so Gate 2 (frontmatter) runs.
 install_self_install_githook() {
   local project_dir="$1"
 
@@ -574,14 +577,14 @@ install_self_install_githook() {
     # `git config core.hooksPath .githooks` manually if they want us to own
     # the hook path.
     echo "  ⚠ git hooks: core.hooksPath is set to '$current_path', leaving it alone."
-    echo "    To enable just-ship's installed-copy protection:"
+    echo "    To enable just-ship's frontmatter check:"
     echo "      cd $project_dir && git config core.hooksPath .githooks"
     return 0
   fi
 
   (cd "$project_dir" && git config core.hooksPath .githooks)
   chmod +x "$project_dir/.githooks/"* 2>/dev/null || true
-  echo "  ✓ git hooks (core.hooksPath=.githooks — blocks edits to .pipeline/)"
+  echo "  ✓ git hooks (core.hooksPath=.githooks — applies_to: frontmatter check)"
 }
 
 # --- Helper: add Shopify AI Toolkit MCP server to a settings.json file ---
@@ -771,30 +774,32 @@ if [ "$MODE" = "update" ]; then
     done
   fi
 
-  # Pipeline
-  diff_file "$FRAMEWORK_DIR/pipeline/run.sh" "$PROJECT_DIR/.pipeline/run.sh" ".pipeline/run.sh"
-  diff_file "$FRAMEWORK_DIR/pipeline/run.ts" "$PROJECT_DIR/.pipeline/run.ts" ".pipeline/run.ts"
-  diff_file "$FRAMEWORK_DIR/pipeline/package.json" "$PROJECT_DIR/.pipeline/package.json" ".pipeline/package.json"
-  for f in "$FRAMEWORK_DIR/pipeline/lib/"*.ts; do
-    fname=$(basename "$f")
-    diff_file "$f" "$PROJECT_DIR/.pipeline/lib/$fname" ".pipeline/lib/$fname"
-  done
-  # Check for removed files
-  if [ -f "$PROJECT_DIR/.pipeline/send-event.sh" ]; then
-    echo "  - .pipeline/send-event.sh (replaced by SDK hooks)"
-    CHANGES=$((CHANGES + 1))
-  fi
-  if [ -f "$PROJECT_DIR/.claude/scripts/devboard-hook.sh" ]; then
-    echo "  - .claude/scripts/devboard-hook.sh (replaced by SDK hooks)"
-    CHANGES=$((CHANGES + 1))
-  fi
-  if [ -f "$PROJECT_DIR/.pipeline/lib/mcp-tools.ts" ]; then
-    echo "  - .pipeline/lib/mcp-tools.ts (removed — non-functional in SDK mode)"
-    CHANGES=$((CHANGES + 1))
-  fi
-  if [ -f "$PROJECT_DIR/.pipeline/worker.ts" ]; then
-    echo "  - .pipeline/worker.ts (removed — polling replaced by Board-triggered /api/launch)"
-    CHANGES=$((CHANGES + 1))
+  # Pipeline — only diff in consumer repos. Engine repo has no .pipeline/ install (T-1064).
+  if [ "$_SELF_INSTALL" != "1" ]; then
+    diff_file "$FRAMEWORK_DIR/pipeline/run.sh" "$PROJECT_DIR/.pipeline/run.sh" ".pipeline/run.sh"
+    diff_file "$FRAMEWORK_DIR/pipeline/run.ts" "$PROJECT_DIR/.pipeline/run.ts" ".pipeline/run.ts"
+    diff_file "$FRAMEWORK_DIR/pipeline/package.json" "$PROJECT_DIR/.pipeline/package.json" ".pipeline/package.json"
+    for f in "$FRAMEWORK_DIR/pipeline/lib/"*.ts; do
+      fname=$(basename "$f")
+      diff_file "$f" "$PROJECT_DIR/.pipeline/lib/$fname" ".pipeline/lib/$fname"
+    done
+    # Check for removed files
+    if [ -f "$PROJECT_DIR/.pipeline/send-event.sh" ]; then
+      echo "  - .pipeline/send-event.sh (replaced by SDK hooks)"
+      CHANGES=$((CHANGES + 1))
+    fi
+    if [ -f "$PROJECT_DIR/.claude/scripts/devboard-hook.sh" ]; then
+      echo "  - .claude/scripts/devboard-hook.sh (replaced by SDK hooks)"
+      CHANGES=$((CHANGES + 1))
+    fi
+    if [ -f "$PROJECT_DIR/.pipeline/lib/mcp-tools.ts" ]; then
+      echo "  - .pipeline/lib/mcp-tools.ts (removed — non-functional in SDK mode)"
+      CHANGES=$((CHANGES + 1))
+    fi
+    if [ -f "$PROJECT_DIR/.pipeline/worker.ts" ]; then
+      echo "  - .pipeline/worker.ts (removed — polling replaced by Board-triggered /api/launch)"
+      CHANGES=$((CHANGES + 1))
+    fi
   fi
 
   # Skills (framework skills only — project-specific skills are never touched)
@@ -832,7 +837,7 @@ if [ "$MODE" = "update" ]; then
   if [ "$CHANGES" -eq 0 ]; then
     echo "  Everything up to date."
     # Still update version marker so it stays in sync (but not in dry-run/check mode)
-    if [ "$DRY_RUN" != true ]; then
+    if [ "$DRY_RUN" != true ] && [ "$_SELF_INSTALL" != "1" ]; then
       echo "$FRAMEWORK_VERSION" > "$VERSION_FILE"
       # Write version stamp into .pipeline/ for consumer-repo drift detection
       [ -d "$PROJECT_DIR/.pipeline" ] && echo "$FRAMEWORK_VERSION" > "$PROJECT_DIR/.pipeline/.version-stamp"
@@ -991,30 +996,36 @@ if [ "$MODE" = "update" ]; then
   chmod +x "$PROJECT_DIR/.claude/hooks/"*.sh 2>/dev/null || true
   echo "  ✓ hooks (event streaming)"
 
-  echo "Updating pipeline..."
-  mkdir -p "$PROJECT_DIR/.pipeline"
-  # Copy all pipeline files
-  cp "$FRAMEWORK_DIR/pipeline/run.sh" "$PROJECT_DIR/.pipeline/run.sh"
-  cp "$FRAMEWORK_DIR/pipeline/run.ts" "$PROJECT_DIR/.pipeline/run.ts"
-  cp "$FRAMEWORK_DIR/pipeline/package.json" "$PROJECT_DIR/.pipeline/package.json"
-  cp "$FRAMEWORK_DIR/pipeline/tsconfig.json" "$PROJECT_DIR/.pipeline/tsconfig.json"
-  mkdir -p "$PROJECT_DIR/.pipeline/lib"
-  cp "$FRAMEWORK_DIR/pipeline/lib/"*.ts "$PROJECT_DIR/.pipeline/lib/"
-  chmod +x "$PROJECT_DIR/.pipeline/"*.sh 2>/dev/null || true
-  echo "$FRAMEWORK_VERSION" > "$PROJECT_DIR/.pipeline/.version-stamp"
-  # Cleanup removed files
-  rm -f "$PROJECT_DIR/.pipeline/send-event.sh"
-  rm -f "$PROJECT_DIR/.pipeline/lib/mcp-tools.ts"
-  rm -f "$PROJECT_DIR/.pipeline/worker.ts"
-  rm -f "$PROJECT_DIR/.claude/scripts/devboard-hook.sh"
-  # Install dependencies
-  if [ -f "$PROJECT_DIR/.pipeline/package.json" ]; then
-    echo "  Installing pipeline dependencies..."
-    (cd "$PROJECT_DIR/.pipeline" && npm install --production 2>/dev/null)
+  # Pipeline install — engine repo (self-install) skips this entirely (T-1064).
+  # The engine uses pipeline/ source directly; no .pipeline/ copy is needed.
+  if [ "$_SELF_INSTALL" = "1" ]; then
+    echo "Skipping .pipeline/ install (engine repo — uses pipeline/ source directly)"
+  else
+    echo "Updating pipeline..."
+    mkdir -p "$PROJECT_DIR/.pipeline"
+    # Copy all pipeline files
+    cp "$FRAMEWORK_DIR/pipeline/run.sh" "$PROJECT_DIR/.pipeline/run.sh"
+    cp "$FRAMEWORK_DIR/pipeline/run.ts" "$PROJECT_DIR/.pipeline/run.ts"
+    cp "$FRAMEWORK_DIR/pipeline/package.json" "$PROJECT_DIR/.pipeline/package.json"
+    cp "$FRAMEWORK_DIR/pipeline/tsconfig.json" "$PROJECT_DIR/.pipeline/tsconfig.json"
+    mkdir -p "$PROJECT_DIR/.pipeline/lib"
+    cp "$FRAMEWORK_DIR/pipeline/lib/"*.ts "$PROJECT_DIR/.pipeline/lib/"
+    chmod +x "$PROJECT_DIR/.pipeline/"*.sh 2>/dev/null || true
+    echo "$FRAMEWORK_VERSION" > "$PROJECT_DIR/.pipeline/.version-stamp"
+    # Cleanup removed files
+    rm -f "$PROJECT_DIR/.pipeline/send-event.sh"
+    rm -f "$PROJECT_DIR/.pipeline/lib/mcp-tools.ts"
+    rm -f "$PROJECT_DIR/.pipeline/worker.ts"
+    rm -f "$PROJECT_DIR/.claude/scripts/devboard-hook.sh"
+    # Install dependencies
+    if [ -f "$PROJECT_DIR/.pipeline/package.json" ]; then
+      echo "  Installing pipeline dependencies..."
+      (cd "$PROJECT_DIR/.pipeline" && npm install --production 2>/dev/null)
+    fi
+    ensure_gitignore ".pipeline/node_modules" "Pipeline dependencies (auto-installed)"
+    ensure_gitignore ".env.local" "Local credentials (auto-generated by just-ship connect)"
+    echo "  ✓ .pipeline/ (SDK pipeline)"
   fi
-  ensure_gitignore ".pipeline/node_modules" "Pipeline dependencies (auto-installed)"
-  ensure_gitignore ".env.local" "Local credentials (auto-generated by just-ship connect)"
-  echo "  ✓ .pipeline/ (SDK pipeline)"
 
   echo "Updating settings..."
   cp "$FRAMEWORK_DIR/templates/settings.standalone.json" "$PROJECT_DIR/.claude/settings.json"
@@ -1075,10 +1086,12 @@ if [ "$MODE" = "update" ]; then
     add_shopify_mcp_server "$PROJECT_DIR/.claude/settings.json"
   fi
 
-  # Write version
-  echo "$FRAMEWORK_VERSION" > "$VERSION_FILE"
-  # Write version stamp into .pipeline/ for consumer-repo drift detection
-  [ -d "$PROJECT_DIR/.pipeline" ] && echo "$FRAMEWORK_VERSION" > "$PROJECT_DIR/.pipeline/.version-stamp"
+  # Write version (consumer repos only — engine repo has no .pipeline-version stamp)
+  if [ "$_SELF_INSTALL" != "1" ]; then
+    echo "$FRAMEWORK_VERSION" > "$VERSION_FILE"
+    # Write version stamp into .pipeline/ for consumer-repo drift detection
+    [ -d "$PROJECT_DIR/.pipeline" ] && echo "$FRAMEWORK_VERSION" > "$PROJECT_DIR/.pipeline/.version-stamp"
+  fi
 
   # Write framework version to project.json
   write_framework_version_to_project_json "$PROJECT_DIR/project.json" "$FRAMEWORK_VERSION"
@@ -1264,7 +1277,9 @@ if [ "$MODE" = "update" ]; then
       echo ""
       echo "Committing update..."
 
-      # Stage only framework-managed paths
+      # Stage only framework-managed paths.
+      # `.pipeline/` and `.claude/.pipeline-version` only exist in consumer repos
+      # (engine repo skips them since T-1064). Staging is harmless when missing.
       git -C "$PROJECT_DIR" add \
         ".claude/agents/" \
         ".claude/commands/" \
@@ -1331,20 +1346,25 @@ cp "$FRAMEWORK_DIR/commands/"*.md "$PROJECT_DIR/.claude/commands/"
 echo "  ✓ $(ls "$FRAMEWORK_DIR/commands/"*.md | wc -l | tr -d ' ') commands"
 
 # --- Copy pipeline runner ---
-echo "Installing pipeline..."
-mkdir -p "$PROJECT_DIR/.pipeline/lib"
-cp "$FRAMEWORK_DIR/pipeline/run.sh" "$PROJECT_DIR/.pipeline/run.sh"
-cp "$FRAMEWORK_DIR/pipeline/run.ts" "$PROJECT_DIR/.pipeline/run.ts"
-cp "$FRAMEWORK_DIR/pipeline/package.json" "$PROJECT_DIR/.pipeline/package.json"
-cp "$FRAMEWORK_DIR/pipeline/tsconfig.json" "$PROJECT_DIR/.pipeline/tsconfig.json"
-cp "$FRAMEWORK_DIR/pipeline/lib/"*.ts "$PROJECT_DIR/.pipeline/lib/"
-chmod +x "$PROJECT_DIR/.pipeline/"*.sh 2>/dev/null || true
-echo "$FRAMEWORK_VERSION" > "$PROJECT_DIR/.pipeline/.version-stamp"
-echo "  Installing pipeline dependencies..."
-(cd "$PROJECT_DIR/.pipeline" && npm install --production 2>/dev/null)
-ensure_gitignore ".pipeline/node_modules" "Pipeline dependencies (auto-installed)"
-ensure_gitignore ".env.local" "Local credentials (auto-generated by just-ship connect)"
-echo "  ✓ .pipeline/ (SDK pipeline)"
+# Engine repo (self-install) skips this entirely — uses pipeline/ source directly (T-1064).
+if [ "$_SELF_INSTALL" = "1" ]; then
+  echo "Skipping .pipeline/ install (engine repo — uses pipeline/ source directly)"
+else
+  echo "Installing pipeline..."
+  mkdir -p "$PROJECT_DIR/.pipeline/lib"
+  cp "$FRAMEWORK_DIR/pipeline/run.sh" "$PROJECT_DIR/.pipeline/run.sh"
+  cp "$FRAMEWORK_DIR/pipeline/run.ts" "$PROJECT_DIR/.pipeline/run.ts"
+  cp "$FRAMEWORK_DIR/pipeline/package.json" "$PROJECT_DIR/.pipeline/package.json"
+  cp "$FRAMEWORK_DIR/pipeline/tsconfig.json" "$PROJECT_DIR/.pipeline/tsconfig.json"
+  cp "$FRAMEWORK_DIR/pipeline/lib/"*.ts "$PROJECT_DIR/.pipeline/lib/"
+  chmod +x "$PROJECT_DIR/.pipeline/"*.sh 2>/dev/null || true
+  echo "$FRAMEWORK_VERSION" > "$PROJECT_DIR/.pipeline/.version-stamp"
+  echo "  Installing pipeline dependencies..."
+  (cd "$PROJECT_DIR/.pipeline" && npm install --production 2>/dev/null)
+  ensure_gitignore ".pipeline/node_modules" "Pipeline dependencies (auto-installed)"
+  ensure_gitignore ".env.local" "Local credentials (auto-generated by just-ship connect)"
+  echo "  ✓ .pipeline/ (SDK pipeline)"
+fi
 
 # --- Copy skills ---
 echo "Installing skills..."
@@ -1488,11 +1508,13 @@ install_self_install_githook "$PROJECT_DIR"
 if [ ! -f "$PROJECT_DIR/CLAUDE.md" ]; then
   echo "Generating CLAUDE.md..."
   sed "s/{{PROJECT_NAME}}/${PROJECT_NAME}/g" "$FRAMEWORK_DIR/templates/CLAUDE.md" > "$PROJECT_DIR/CLAUDE.md"
-  # Write template hash after fresh generation
-  if command -v md5 &>/dev/null; then
-    md5 -q "$FRAMEWORK_DIR/templates/CLAUDE.md" > "$PROJECT_DIR/.claude/.template-hash" 2>/dev/null || true
-  elif command -v md5sum &>/dev/null; then
-    md5sum "$FRAMEWORK_DIR/templates/CLAUDE.md" 2>/dev/null | cut -d' ' -f1 > "$PROJECT_DIR/.claude/.template-hash" || true
+  # Write template hash after fresh generation (consumer repos only — engine has no .template-hash)
+  if [ "$_SELF_INSTALL" != "1" ]; then
+    if command -v md5 &>/dev/null; then
+      md5 -q "$FRAMEWORK_DIR/templates/CLAUDE.md" > "$PROJECT_DIR/.claude/.template-hash" 2>/dev/null || true
+    elif command -v md5sum &>/dev/null; then
+      md5sum "$FRAMEWORK_DIR/templates/CLAUDE.md" 2>/dev/null | cut -d' ' -f1 > "$PROJECT_DIR/.claude/.template-hash" || true
+    fi
   fi
   echo "  ✓ CLAUDE.md (edit with your project specifics)"
 else
@@ -1602,8 +1624,8 @@ else
     fi
 
     echo "  ✓ CLAUDE.md migrated (backup: CLAUDE.md.bak, project-specific content preserved)"
-    # Write template hash AFTER successful migration
-    if [ -n "$CURRENT_TPL_HASH" ]; then
+    # Write template hash AFTER successful migration (consumer repos only)
+    if [ -n "$CURRENT_TPL_HASH" ] && [ "$_SELF_INSTALL" != "1" ]; then
       echo "$CURRENT_TPL_HASH" > "$PROJECT_DIR/.claude/.template-hash"
     fi
   else
@@ -1616,8 +1638,10 @@ cp "$FRAMEWORK_DIR/scripts/write-config.sh" "$PROJECT_DIR/.claude/scripts/write-
 chmod +x "$PROJECT_DIR/.claude/scripts/write-config.sh"
 echo "  ✓ write-config.sh (shared config script)"
 
-# --- Write version (template hash is written during CLAUDE.md generation/migration above) ---
-echo "$FRAMEWORK_VERSION" > "$VERSION_FILE"
+# --- Write version (consumer repos only — engine has no .pipeline-version) ---
+if [ "$_SELF_INSTALL" != "1" ]; then
+  echo "$FRAMEWORK_VERSION" > "$VERSION_FILE"
+fi
 
 # Write framework version to project.json
 write_framework_version_to_project_json "$PROJECT_DIR/project.json" "$FRAMEWORK_VERSION"
