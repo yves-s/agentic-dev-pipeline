@@ -104,15 +104,17 @@ jobs:
           # Drift = any change to install-path files that setup.sh regenerates.
           # We diff against HEAD (the workspace state pre-setup), excluding
           # paths that setup.sh cleans up but the script ignores in --update.
+          # Engine repo no longer maintains a `.pipeline/` install copy or
+          # `.claude/.pipeline-version` / `.claude/.template-hash` stamps
+          # (T-1064). The remaining install paths are the framework artifacts
+          # that setup.sh regenerates from sources under skills/, agents/,
+          # commands/, and templates/.
           INSTALL_PATHS=(
             ".claude/skills"
             ".claude/scripts"
             ".claude/hooks"
             ".claude/rules"
             ".claude/settings.json"
-            ".claude/.pipeline-version"
-            ".claude/.template-hash"
-            ".pipeline"
           )
 
           DRIFT_FILE=$(mktemp)
@@ -129,10 +131,9 @@ jobs:
               echo ""
               echo "**\`setup.sh --update\` would change $COUNT install file(s).**"
               echo ""
-              echo "The framework source under \`agents/\`, \`commands/\`, \`skills/\`, \`pipeline/\`,"
+              echo "The framework source under \`agents/\`, \`commands/\`, \`skills/\`,"
               echo "\`templates/\`, and \`.claude/{rules,scripts,hooks}/\` has moved ahead of the"
-              echo "installed copies under \`.claude/{skills,scripts,hooks,rules,settings.json}\`,"
-              echo "\`.claude/.pipeline-version\`, \`.claude/.template-hash\`, and \`.pipeline/\`."
+              echo "installed copies under \`.claude/{skills,scripts,hooks,rules,settings.json}\`."
               echo ""
               echo "### Fix"
               echo ""
